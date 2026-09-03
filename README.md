@@ -116,12 +116,15 @@ You can press `y` to accept the smart recommendations, or enter custom model num
 ```
 Allows switching any subagent role (e.g. promoting the Implementer to `pro` for complex refactors, or switching the Tester to `flash`).
 
-### 3. Dispatching Tasks
-Whenever you provide a complex task, the Supervisor will automatically:
-1. Decompose the task into independent units.
-2. Verify that parallel tasks do not touch the same files.
-3. Spawn subagents using the configured model tiers.
-4. Review results and report the final verified status.
+### 3. Ambient Execution (Zero Commands Required)
+You never need to remember or run an explicit dispatch command. You simply interact with the agent normally:
+> *"Add token expiry validation in auth.py and update the unit test suite."*
+
+The Supervisor reads `AGENTS.md` and automatically:
+1. **Evaluates Task Complexity**: Trivial single-line fixes are handled directly; complex multi-file tasks trigger decomposition.
+2. **Checks File Safety**: Verifies that parallel subagents do not edit conflicting files.
+3. **Dispatches Tiered Subagents**: Spawns `flash` for coding and `flash_lite` for testing concurrently.
+4. **Compresses & Synthesizes**: Ingests only verified test assertions and diff summaries, keeping the main context window lean.
 
 ---
 

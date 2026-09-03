@@ -15,8 +15,10 @@ Command / Trigger | Description
 :--- | :---
 `/orchestrate init` | Interactive onboarding: guides the user through selecting models for the Supervisor and Subagent roles, writing configuration to `AGENTS.md` and `.agents/orchestration.config.json`.
 `/orchestrate update` | Re-configures role-to-model assignments and execution policies without manual edits.
-`/orchestrate dispatch` | Decomposes a user task or ticket into non-overlapping sub-tasks, dispatches parallel subagents, monitors progress, and synthesizes results.
-`/orchestrate status` | Inspects currently active subagents, logs, and token efficiency statistics.
+`/orchestrate status` | Inspects currently active subagents, background tasks, and token efficiency statistics.
+
+> [!NOTE]
+> **Ambient Execution**: Task decomposition and parallel dispatch do NOT require a slash command. Once initialized, the Supervisor automatically decomposes complex, multi-file requests and delegates them ambiently according to `AGENTS.md`.
 
 ---
 
@@ -78,9 +80,14 @@ When the user triggers `/orchestrate update`:
 
 ---
 
-## 3. Task Decomposition & Parallel Dispatch
+## 3. Ambient Task Decomposition & Parallel Dispatch (Autonomous Runtime)
 
-When executing complex tasks, the Supervisor MUST follow these orchestration phases:
+Orchestration is **ambient**: the user does not run a special command to invoke it. When a user presents any request, the Supervisor automatically applies the **Task Complexity Threshold**:
+
+* **Trivial / Direct Tasks** (single-line fix, answering a question, inspecting one function):
+  * The Supervisor executes directly. Spawning subagents for micro-edits is avoided to prevent dispatch latency and overhead.
+* **Complex / Multi-file / Multi-step Tasks** (adding features across modules, deep codebase exploration, writing tests):
+  * The Supervisor automatically engages the decomposition and delegation protocol below:
 
 ### Phase 1: Task Decomposition
 1. Break down the user's objective into distinct, isolated units of work.
