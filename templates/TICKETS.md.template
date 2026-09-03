@@ -1,0 +1,27 @@
+# Project Orchestration Task Board
+
+> Managed by `agent-orchestrator`. Tasks are created, worked, and closed by the Supervisor and Subagents.
+
+## 🟢 Open Tickets
+<!-- Tickets ready to be picked up by subagents -->
+
+## 🟡 In Progress
+<!-- Currently active tasks -->
+
+## 🟣 Subagent Discoveries
+<!-- Discovered blockers, bugs, or missing items flagged by subagents during execution -->
+
+## 🏁 Closed Tickets
+<!-- Completed and verified tasks with resolution summaries -->
+
+---
+
+### Ticket Format Reference
+
+```markdown
+- [ ] **#T-001: [Task Title]**
+  - **Role**: `implementer` (Model: `flash`)
+  - **Scope**: `src/modules/...`
+  - **Objective**: Concise description of what needs to be done.
+  - **Resolution** (filled upon close): Brief summary + commit hash.
+```

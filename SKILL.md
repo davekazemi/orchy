@@ -58,7 +58,11 @@ Smart Recommended Setup:
  • Tester / QA: [3] Ultra-light
  • Reviewer: [2] Balanced
 
-Type 'y' to accept these defaults, or enter custom numbers (e.g. "Supervisor: 1, Implementer: 2..."):
+Type 'y' to accept these defaults, or enter custom numbers (e.g. "Supervisor: 1, Implementer: 2...").
+
+Ticketing & Task Tracking Preference:
+ [1] Local Markdown (.agents/TICKETS.md - self-contained, offline-ready, zero network overhead) [Recommended Default]
+ [2] GitHub Issues (Sync with remote repository issue tracker via 'gh' CLI)
 ```
 
 ### Step 3: Persist Configuration
@@ -148,13 +152,47 @@ If a subagent's work fails verification or produces errors:
 
 ---
 
-## 4. Ticketing & Git Integration
+## 4. Ticketing & Task Tracking Integration
 
-The orchestrator integrates with **GitHub Issues** (using the `gh` CLI) or local markdown files:
+The orchestrator supports two interchangeable tracking modes configured during `/orchestrate init`:
 
-1. **Ticket Creation**: Major tasks are opened as issues labeled `orchestrate:task` via `gh issue create`.
+### Option A: Local Markdown Tracker (`.agents/TICKETS.md`) [Default]
+Ideal for local projects, offline work, or repositories without remote issue trackers.
+
+1. **Board Structure**: `.agents/TICKETS.md` contains sections for `🟢 Open Tickets`, `🟡 In Progress`, `🟣 Subagent Discoveries`, and `🏁 Closed Tickets`.
+2. **Supervisor Creation**: When decomposing a macro task, the Supervisor appends ticket entries:
+   ```markdown
+   - [ ] **#T-001: Implement Password Reset Endpoint**
+     - **Role**: `implementer` (Model: `flash`)
+     - **Scope**: `src/auth/reset.py`, `src/api/routes.py`
+     - **Objective**: Create reset token generation and endpoint logic.
+   ```
+3. **Subagent Work & Discoveries**:
+   * While executing, if a subagent discovers an unanticipated dependency or bug outside its scope, it appends a discovery under `🟣 Subagent Discoveries`:
+     ```markdown
+     - [ ] **#T-002: Missing email SMTP client configuration (found by #T-001)**
+       - **Discovered by**: `implementer` (`flash`)
+       - **Note**: `src/services/mailer.py` throws unhandled ConnectionError.
+     ```
+4. **Subagent / Supervisor Resolution & Closure**:
+   * When a task is verified by tests, the assigned subagent (or Supervisor) updates `.agents/TICKETS.md`:
+     * Moves the item from `Open` / `In Progress` to `🏁 Closed Tickets`.
+     * Marks the checkbox `[x]`.
+     * Appends the resolution summary and relevant commit hash:
+     ```markdown
+     - [x] **#T-001: Implement Password Reset Endpoint**
+       - **Resolution**: Added reset token generation and verification endpoint. 5/5 unit tests passing.
+       - **Commit**: `a1b2c3d` | **Closed by**: `tester` (`flash_lite`)
+     ```
+
+---
+
+### Option B: Remote GitHub Issues (`gh` CLI)
+Ideal for collaborative teams and open-source projects.
+
+1. **Ticket Creation**: Major milestones are created as GitHub issues labeled `orchestrate:task` via `gh issue create`.
 2. **Branching**: For multi-step implementations, create a branch `feature/issue-<id>`.
-3. **Closing**: Once the Supervisor verifies the combined diff and test outputs, commit the changes, push, and close the issue via `gh issue close <id>`.
+3. **Closing**: Once the Supervisor verifies the combined diff and test outputs, commit the changes, push, and close the issue via `gh issue close <id> --comment "Resolved and verified by subagents."`.
 
 ---
 

@@ -57,8 +57,12 @@
     "feedbackLoopMaxRetries": 2
   },
   "ticketing": {
-    "provider": "github",
-    "syncWithIssues": true,
-    "issueLabelPrefix": "orchestrate:"
+    "provider": "markdown",
+    "markdownPath": ".agents/TICKETS.md",
+    "github": {
+      "syncWithIssues": true,
+      "issueLabelPrefix": "orchestrate:"
+    },
+    "allowSubagentTicketing": true
   }
 }

@@ -48,7 +48,7 @@ flowchart TD
 - ⚡ **Safe Parallel Dispatch**: Enforces the **Disjoint File Invariant**—subagents targeting disjoint directories execute in parallel without merge race conditions.
 - 📦 **Context Window Compression**: Subagents report only structured summaries, affected file lists, and test assertions. The Supervisor never gets bogged down with raw dumps.
 - 🔁 **Targeted Feedback Loops**: When a subagent encounters a test failure, the Supervisor sends corrective instructions via `send_message` rather than rewriting the code itself.
-- 🎫 **Git & GitHub Ticketing**: Integrates with GitHub CLI (`gh`) to track high-level decisions as issues and link them to subagent work streams.
+- 🎫 **Flexible Dual-Mode Ticketing**: Choose between **Local Markdown** (`.agents/TICKETS.md` for offline, zero-network self-containment) or **GitHub Issues** (via `gh` CLI). Subagents can claim, discover new sub-tickets, and close resolved tickets directly in Markdown.
 
 ---
 
@@ -62,7 +62,8 @@ agent-orchestration/
 ├── .gitignore                        # Git ignore rules
 ├── templates/
 │   ├── AGENTS.md.template            # Injectable orchestration rules for target repos
-│   └── orchestration.config.json     # Schema and default role-to-model configuration
+│   ├── orchestration.config.json     # Schema and default role-to-model configuration
+│   └── TICKETS.md.template           # Scaffold template for local Markdown task board
 └── references/
     ├── dispatch-guidelines.md        # Parallel safety, error recovery & economics
     └── ticketing-workflow.md         # GitHub Issues & local markdown ticket management
