@@ -5,6 +5,7 @@
   "description": "Cost-optimized agent orchestration matrix and subagent dispatch parameters",
   "supervisor": {
     "role": "Supervisor & Architect",
+    "capabilityRequirement": "high_reasoning_and_planning",
     "model": "pro",
     "responsibilities": [
       "Task intake and decomposition",
@@ -17,6 +18,7 @@
   "roles": {
     "scout": {
       "name": "Codebase Scout / Explorer",
+      "capabilityRequirement": "fast_read_and_symbol_retrieval",
       "model": "flash_lite",
       "description": "Reads files, greps patterns, locates symbols, and surveys project structure",
       "readOnly": true,
@@ -24,6 +26,7 @@
     },
     "implementer": {
       "name": "Feature Implementer / Coder",
+      "capabilityRequirement": "precise_code_synthesis",
       "model": "flash",
       "description": "Performs scoped code modifications, adds new features, or refactors within isolated files",
       "readOnly": false,
@@ -31,6 +34,7 @@
     },
     "tester": {
       "name": "Test & Verification Engineer",
+      "capabilityRequirement": "cli_execution_and_log_parsing",
       "model": "flash_lite",
       "description": "Executes unit tests, linting, build pipelines, and reports failure logs concisely",
       "readOnly": false,
@@ -38,6 +42,7 @@
     },
     "reviewer": {
       "name": "Code Standards & Spec Reviewer",
+      "capabilityRequirement": "spec_critique_and_smell_detection",
       "model": "flash",
       "description": "Performs static code review, detects code smells, and ensures architectural consistency",
       "readOnly": true,

@@ -101,14 +101,14 @@ In your chat or CLI:
 ```text
 /orchestrate init
 ```
-The agent will ask you to confirm or customize your model tiers:
-- **Supervisor**: `inherit` (or `pro`)
-- **Codebase Scout**: `flash_lite`
-- **Implementer**: `flash`
-- **Tester / QA**: `flash_lite`
-- **Reviewer**: `flash`
+The agent scans available models in your runtime environment (Antigravity, Cursor, Claude Code, etc.), presents them in a numbered menu (e.g., `[1]` to `[N]`), and suggests smart defaults matched to each role's capability profile:
+- **Supervisor** (High Reasoning & Planning): Top-tier model (e.g. `[1]` Pro / Sonnet)
+- **Codebase Scout** (High-throughput Read & Search): Ultra-lightweight model (e.g. `[3]` Flash-Lite / Haiku)
+- **Implementer** (Precise Code Synthesis): Balanced model (e.g. `[2]` Flash / Sonnet)
+- **Tester / QA** (CLI Exec & Log Parsing): Ultra-lightweight model (e.g. `[3]` Flash-Lite / Haiku)
+- **Reviewer** (Spec & Standards Critique): Balanced model (e.g. `[2]` Flash / Sonnet)
 
-It will then write the orchestration matrix to your project's `AGENTS.md`.
+You can press `y` to accept the smart recommendations, or enter custom model numbers for each role. It will then persist the matrix to `.agents/orchestration.config.json` and your project's `AGENTS.md`.
 
 ### 2. Update Model Assignments
 ```text

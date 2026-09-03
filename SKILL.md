@@ -24,36 +24,47 @@ Command / Trigger | Description
 
 When the user runs `/orchestrate init` (or asks to set up agent orchestration):
 
-### Step 1: Prompt for Model Preferences
-Ask the user to configure or confirm their model preferences. Present sensible defaults:
+### Step 1: Dynamic Model Discovery & Capability Matching
+The skill is platform-neutral and functions across **Antigravity**, **Cursor**, **Claude Code**, and custom agent runners. Because available models differ across environments, the agent does NOT assume fixed model names.
 
-1. **Supervisor Model**
-   * Default: `inherit` (uses the active model, e.g. `pro` / Gemini 3.8 / Claude 3.7)
-   * Role: Task decomposition, planning, final review, and user communication.
+Instead, the agent determines recommendations by matching each role's **Capability Requirements** against the runtime's available model tiers:
 
-2. **Codebase Scout / Explorer Model**
-   * Default: `flash_lite` (or `flash`)
-   * Role: Reading files, searching symbols, grepping, surveying dependencies.
-   * Rationale: High token volume, pure read operations, ~90% cost savings.
+| Role | Capability Requirement | Token Velocity & Cost | Recommended Tier |
+| :--- | :--- | :--- | :--- |
+| **Supervisor** | **High Reasoning & Planning**: Needs planning mode, macro decomposition, conflict detection, user alignment. | Low token volume (orchestration only) | **Top-tier Reasoning** (e.g. `pro`, Claude 3.7 Sonnet, GPT-4o) |
+| **Codebase Scout** | **Fast Read & Symbol Search**: Greps patterns, reads files, discovers dependencies. Pure read-only. | Highest token volume (~50-80% of session) | **Ultra-lightweight / Cheap** (e.g. `flash_lite`, Haiku, mini) |
+| **Implementer** | **Precise Code Synthesis**: Edits functions, writes scoped modules, preserves conventions. | Moderate token volume | **Fast Balanced Coding** (e.g. `flash`, Sonnet, GPT-4o-mini) |
+| **Tester / QA** | **CLI Execution & Log Parsing**: Executes test suites, linters, parses build error traces. | High volume, routine logs | **Ultra-lightweight / Cheap** (e.g. `flash_lite`, Haiku, mini) |
+| **Reviewer** | **Spec & Standards Critique**: Verifies against specs, flags anti-patterns and smells. | Moderate token volume | **Fast Balanced Reasoning** (e.g. `flash`, Sonnet) |
 
-3. **Feature Implementer / Coder Model**
-   * Default: `flash` (or `pro` for complex refactors)
-   * Role: Writing isolated modules, editing targeted files, formatting code.
+### Step 2: Interactive Numbered Selection
+1. The agent inspects or lists the models available in the current environment (e.g., options 1 through N).
+2. The agent auto-selects its **recommended smart defaults** based on the criteria above, but displays the numbered menu so the user has full control:
 
-4. **Test & QA Runner Model**
-   * Default: `flash_lite` (or `flash`)
-   * Role: Executing test suites, linting, build scripts, reporting concise logs.
+```text
+Configuring Agent Orchestration Roles:
+Available Models in this environment:
+ [1] Gemini 3.8 Pro / Claude 3.7 Sonnet (Top-tier reasoning)
+ [2] Gemini 3.8 Flash / Claude 3.5 Sonnet (Balanced speed & code generation)
+ [3] Gemini 3.8 Flash-Lite / Claude 3.5 Haiku (Ultra-fast, lowest cost)
+ [4] inherit (Match active session model)
 
-5. **Code Reviewer Model**
-   * Default: `flash`
-   * Role: Validating standards, finding smells, verifying against specifications.
+Smart Recommended Setup:
+ • Supervisor: [1] Top-tier (or [4] inherit)
+ • Implementer: [2] Balanced
+ • Scout / Explorer: [3] Ultra-light
+ • Tester / QA: [3] Ultra-light
+ • Reviewer: [2] Balanced
 
-### Step 2: Persist Configuration
-1. Read existing `.agents/orchestration.config.json` if present, or copy from `templates/orchestration.config.json` with user choices.
+Type 'y' to accept these defaults, or enter custom numbers (e.g. "Supervisor: 1, Implementer: 2..."):
+```
+
+### Step 3: Persist Configuration
+1. Record choices in `.agents/orchestration.config.json` with the selected model names and capability requirements.
 2. In the target workspace's `AGENTS.md` (creating it if absent):
    * Look for existing `<!-- agent-orchestration:start -->` marker.
    * Inject or update the orchestration matrix using `templates/AGENTS.md.template`.
-3. Report the saved configuration back to the user with an efficiency summary.
+3. Report the saved configuration back to the user with an estimated token efficiency summary.
 
 ---
 
@@ -140,12 +151,13 @@ The orchestrator integrates with **GitHub Issues** (using the `gh` CLI) or local
 
 ---
 
-## 5. Summary of Model Tier Guidelines
+## 5. Summary of Cross-Platform Model Tier Guidelines
 
-Role | Model Value in Antigravity | Token Cost Ratio | Best Used For
-:--- | :--- | :--- | :---
-**Supervisor / Architect** | `inherit` or `pro` | 1.0x | System design, user consultation, conflict resolution, diff reviews
-**Implementer / Coder** | `flash` | ~0.2x | Scoped feature implementation, targeted refactors, boilerplate
-**Scout / Explorer** | `flash_lite` | ~0.05x | Grep searches, reading source files, tracing symbol references
-**Tester / QA** | `flash_lite` or `flash` | ~0.05x - 0.2x | Running test suites, interpreting compiler errors, checking linters
-**Reviewer** | `flash` | ~0.2x | Checking coding standards, detecting code smells, verifying specs
+| Role | Antigravity Tier | Claude Code / Cursor Equivalent | Token Cost Ratio | Best Used For |
+| :--- | :--- | :--- | :--- | :--- |
+| **Supervisor / Architect** | `inherit` or `pro` | Claude 3.7 Sonnet / Opus / GPT-4o | 1.0x (Baseline) | System design, user consultation, conflict resolution, diff reviews |
+| **Implementer / Coder** | `flash` | Claude 3.5 Sonnet / GPT-4o-mini | ~0.15x - 0.25x | Scoped feature implementation, targeted refactors, boilerplate |
+| **Scout / Explorer** | `flash_lite` | Claude 3.5 Haiku / GPT-4o-mini | ~0.05x - 0.10x | Grep searches, reading source files, tracing symbol references |
+| **Tester / QA** | `flash_lite` or `flash` | Claude 3.5 Haiku / GPT-4o-mini | ~0.05x - 0.15x | Running test suites, interpreting compiler errors, checking linters |
+| **Reviewer** | `flash` | Claude 3.5 Sonnet / GPT-4o-mini | ~0.15x - 0.25x | Checking coding standards, detecting code smells, verifying specs |
+

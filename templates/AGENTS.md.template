@@ -11,14 +11,15 @@ The main conversational agent operates as the **Supervisor** (Model: `{{SUPERVIS
 - Managing subagent concurrency and model selection.
 - Reviewing combined diffs, test outputs, and ensuring integration integrity.
 
-Routine, high-volume, or exploratory operations **must be delegated** to specialized subagents using lower-cost models:
+Routine, high-volume, or exploratory operations **must be delegated** to specialized subagents matching these capability profiles:
 
-| Role | Default Model | Responsibility | Permissions |
-| :--- | :--- | :--- | :--- |
-| **Codebase Scout** | `{{SCOUT_MODEL}}` | Grep, symbol discovery, directory mapping, reading docs | Read-only |
-| **Implementer** | `{{IMPLEMENTER_MODEL}}` | Writing and editing code within assigned files | Read/Write |
-| **Tester / QA** | `{{TESTER_MODEL}}` | Running test suites, build checks, and linters | Read/Write/Exec |
-| **Reviewer** | `{{REVIEWER_MODEL}}` | Standards adherence, spec validation, diff critique | Read-only |
+| Role | Capability Profile | Assigned Model | Responsibility | Permissions |
+| :--- | :--- | :--- | :--- | :--- |
+| **Codebase Scout** | Fast Read / High Throughput | `{{SCOUT_MODEL}}` | Grep, symbol discovery, directory mapping, reading docs | Read-only |
+| **Implementer** | Precise Code Synthesis | `{{IMPLEMENTER_MODEL}}` | Writing and editing code within assigned files | Read/Write |
+| **Tester / QA** | CLI Exec & Log Parsing | `{{TESTER_MODEL}}` | Running test suites, build checks, and linters | Read/Write/Exec |
+| **Reviewer** | Spec & Standards Critique | `{{REVIEWER_MODEL}}` | Standards adherence, spec validation, diff critique | Read-only |
+
 
 ## 2. Dispatch & Concurrency Rules
 
