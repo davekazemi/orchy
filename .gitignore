@@ -1,0 +1,34 @@
+# OS & Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Node / JS
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Environment & Credentials
+.env
+.env.local
+*.pem
+*.key
+
+# Local agent scratch & logs
+.scratch/
+*.log

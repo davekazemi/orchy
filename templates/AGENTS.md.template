@@ -1,0 +1,33 @@
+<!-- agent-orchestration:start -->
+# Cost-Optimized Agent Orchestration Matrix
+
+> Managed by `agent-orchestrator`. Designed to minimize token costs and preserve the Supervisor's context window.
+
+## 1. Supervisor Role & Model Tiers
+
+The main conversational agent operates as the **Supervisor** (Model: `{{SUPERVISOR_MODEL}}`). The Supervisor is strictly responsible for:
+- Receiving user instructions and clarifying ambiguity.
+- Creating the execution plan and decomposing tasks into independent units.
+- Managing subagent concurrency and model selection.
+- Reviewing combined diffs, test outputs, and ensuring integration integrity.
+
+Routine, high-volume, or exploratory operations **must be delegated** to specialized subagents using lower-cost models:
+
+| Role | Default Model | Responsibility | Permissions |
+| :--- | :--- | :--- | :--- |
+| **Codebase Scout** | `{{SCOUT_MODEL}}` | Grep, symbol discovery, directory mapping, reading docs | Read-only |
+| **Implementer** | `{{IMPLEMENTER_MODEL}}` | Writing and editing code within assigned files | Read/Write |
+| **Tester / QA** | `{{TESTER_MODEL}}` | Running test suites, build checks, and linters | Read/Write/Exec |
+| **Reviewer** | `{{REVIEWER_MODEL}}` | Standards adherence, spec validation, diff critique | Read-only |
+
+## 2. Dispatch & Concurrency Rules
+
+1. **Strict File Isolation**: Never spawn two parallel subagents that modify the same file. Parallel subagents must target strictly disjoint file paths or directory sub-trees.
+2. **Context Compression**: Subagents must return only structured findings:
+   - Status (PASS / FAIL / PARTIAL)
+   - Specific files modified or inspected
+   - Terse error traces or diff summaries (no full file dumps)
+3. **Loopback & Iteration**: When verification fails:
+   - The Supervisor sends targeted feedback using `send_message` with the exact error.
+   - If a subagent fails verification twice on the same step, halt and escalate to the human user.
+<!-- agent-orchestration:end -->

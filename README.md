@@ -1,0 +1,147 @@
+# Agent Orchestrator
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Antigravity Skill](https://img.shields.io/badge/Skill-Antigravity-blue.svg)](https://github.com/davekazemi/agent-orchestration)
+
+A specialized skill and framework for **cost-optimized, hierarchical multi-agent orchestration**. 
+
+It equips an AI coding assistant (like Antigravity, Claude Code, or Cursor) to function as an **Architect / Supervisor** that manages context windows and delegates token-heavy exploration, coding, testing, and reviewing tasks to fast, economical subagent tiers (`flash` and `flash_lite`).
+
+---
+
+## 🚀 Why Agent Orchestrator?
+
+In modern AI-assisted engineering, running a top-tier reasoning model (e.g. Gemini 1.5/2.5/3 Pro, Claude 3.7 Sonnet) for every single sub-task has two fatal drawbacks:
+
+1. **Massive Token Inefficiency**: 80% of tokens spent in coding sessions are consumed by repetitive codebase grepping, reading large files, running test commands, and formatting code.
+2. **Context Window Degradation**: As intermediate tool calls and test outputs accumulate, the model's context window dilutes, increasing latency and hallucination rates.
+
+### The Solution: Hierarchical Tiering
+
+```mermaid
+flowchart TD
+    User([User]) <--> Supervisor[Supervisor / Architect\nModel: Pro / Inherit]
+    
+    Supervisor -->|Task Decomposition| Matrix{Parallel Dispatcher\n(Conflict Check)}
+    
+    subgraph Economical Subagent Workers
+        Matrix -->|Read-only Search| Scout[Codebase Scout\nModel: Flash-Lite (~90% cheaper)]
+        Matrix -->|Scoped Code Edit| Coder[Implementer\nModel: Flash (~80% cheaper)]
+        Matrix -->|Run Tests & Lint| Tester[QA Runner\nModel: Flash-Lite (~90% cheaper)]
+        Matrix -->|Standards & Specs| Reviewer[Reviewer\nModel: Flash (~80% cheaper)]
+    end
+    
+    Scout -->|Compressed Summary| Supervisor
+    Coder -->|Diff & Verification| Supervisor
+    Tester -->|Test Pass/Fail Logs| Supervisor
+    Reviewer -->|Code Smells & Critique| Supervisor
+    
+    Supervisor -->|Sync Tickets & Milestones| GitHub[(GitHub Issues / PRs)]
+```
+
+---
+
+## ✨ Features
+
+- ⚙️ **Interactive Onboarding (`/orchestrate init`)**: Prompts the user to configure model tiers for the Supervisor and subagent roles, then persists the matrix into `AGENTS.md` and configuration files.
+- 🔄 **Dynamic Reconfiguration (`/orchestrate update`)**: Easily change assigned models, roles, or concurrency settings at any time.
+- ⚡ **Safe Parallel Dispatch**: Enforces the **Disjoint File Invariant**—subagents targeting disjoint directories execute in parallel without merge race conditions.
+- 📦 **Context Window Compression**: Subagents report only structured summaries, affected file lists, and test assertions. The Supervisor never gets bogged down with raw dumps.
+- 🔁 **Targeted Feedback Loops**: When a subagent encounters a test failure, the Supervisor sends corrective instructions via `send_message` rather than rewriting the code itself.
+- 🎫 **Git & GitHub Ticketing**: Integrates with GitHub CLI (`gh`) to track high-level decisions as issues and link them to subagent work streams.
+
+---
+
+## 📁 Repository Structure
+
+```
+agent-orchestration/
+├── SKILL.md                          # The core Antigravity skill definition
+├── README.md                         # Project documentation
+├── LICENSE                           # MIT License
+├── .gitignore                        # Git ignore rules
+├── templates/
+│   ├── AGENTS.md.template            # Injectable orchestration rules for target repos
+│   └── orchestration.config.json     # Schema and default role-to-model configuration
+└── references/
+    ├── dispatch-guidelines.md        # Parallel safety, error recovery & economics
+    └── ticketing-workflow.md         # GitHub Issues & local markdown ticket management
+```
+
+---
+
+## 📦 Installation
+
+### Option 1: Global Installation (Recommended for Antigravity)
+
+Clone or link this repository into your global Antigravity skills directory:
+
+```bash
+# Clone to your local skills directory
+git clone https://github.com/davekazemi/agent-orchestration.git ~/.gemini/config/skills/agent-orchestrator
+```
+
+The skill will be automatically available across all projects on your machine.
+
+### Option 2: Project-Local Installation
+
+Copy this repository into your project's `.agents/skills/` directory:
+
+```bash
+mkdir -p .agents/skills/
+git clone https://github.com/davekazemi/agent-orchestration.git .agents/skills/agent-orchestrator
+```
+
+---
+
+## 🛠️ Usage
+
+### 1. Initialize Orchestration in a Project
+In your chat or CLI:
+```text
+/orchestrate init
+```
+The agent will ask you to confirm or customize your model tiers:
+- **Supervisor**: `inherit` (or `pro`)
+- **Codebase Scout**: `flash_lite`
+- **Implementer**: `flash`
+- **Tester / QA**: `flash_lite`
+- **Reviewer**: `flash`
+
+It will then write the orchestration matrix to your project's `AGENTS.md`.
+
+### 2. Update Model Assignments
+```text
+/orchestrate update
+```
+Allows switching any subagent role (e.g. promoting the Implementer to `pro` for complex refactors, or switching the Tester to `flash`).
+
+### 3. Dispatching Tasks
+Whenever you provide a complex task, the Supervisor will automatically:
+1. Decompose the task into independent units.
+2. Verify that parallel tasks do not touch the same files.
+3. Spawn subagents using the configured model tiers.
+4. Review results and report the final verified status.
+
+---
+
+## 📊 Economics & Token Savings
+
+| Role | Standard Single-Agent | Agent-Orchestrator Tier | Typical Token Cost Savings |
+| :--- | :--- | :--- | :--- |
+| **Exploration / Grep** | `pro` | `flash_lite` | **~90%** |
+| **Implementation** | `pro` | `flash` | **~75% - 80%** |
+| **Unit Testing / Lint**| `pro` | `flash_lite` | **~90%** |
+| **Supervisor Oversight**| `pro` | `pro` | Clean context, minimal tokens |
+
+---
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/davekazemi/agent-orchestration/issues).
+
+---
+
+## 📄 License
+
+Distributed under the [MIT License](LICENSE). Copyright © 2026 [Davood Kazemi](https://github.com/davekazemi).

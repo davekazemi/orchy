@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "name": "agent-orchestration-config",
+  "description": "Cost-optimized agent orchestration matrix and subagent dispatch parameters",
+  "supervisor": {
+    "role": "Supervisor & Architect",
+    "model": "pro",
+    "responsibilities": [
+      "Task intake and decomposition",
+      "Interactive human-in-the-loop decisions",
+      "Subagent dispatch and parallel scheduling",
+      "Context window pruning and memory management",
+      "Diff verification and quality control"
+    ]
+  },
+  "roles": {
+    "scout": {
+      "name": "Codebase Scout / Explorer",
+      "model": "flash_lite",
+      "description": "Reads files, greps patterns, locates symbols, and surveys project structure",
+      "readOnly": true,
+      "maxContextTargetTokens": 20000
+    },
+    "implementer": {
+      "name": "Feature Implementer / Coder",
+      "model": "flash",
+      "description": "Performs scoped code modifications, adds new features, or refactors within isolated files",
+      "readOnly": false,
+      "maxContextTargetTokens": 40000
+    },
+    "tester": {
+      "name": "Test & Verification Engineer",
+      "model": "flash_lite",
+      "description": "Executes unit tests, linting, build pipelines, and reports failure logs concisely",
+      "readOnly": false,
+      "maxContextTargetTokens": 20000
+    },
+    "reviewer": {
+      "name": "Code Standards & Spec Reviewer",
+      "model": "flash",
+      "description": "Performs static code review, detects code smells, and ensures architectural consistency",
+      "readOnly": true,
+      "maxContextTargetTokens": 30000
+    }
+  },
+  "dispatchPolicy": {
+    "allowParallel": true,
+    "maxConcurrentSubagents": 4,
+    "enforceDisjointFiles": true,
+    "compressSubagentReturns": true,
+    "feedbackLoopMaxRetries": 2
+  },
+  "ticketing": {
+    "provider": "github",
+    "syncWithIssues": true,
+    "issueLabelPrefix": "orchestrate:"
+  }
+}
