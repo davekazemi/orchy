@@ -13,12 +13,16 @@ This skill organizes agent workflows into a **Hierarchical Supervisor-Subagent a
 
 Command / Trigger | Description
 :--- | :---
-`/orchestrate init` | Interactive onboarding: guides the user through selecting models for the Supervisor and Subagent roles, writing configuration to `AGENTS.md` and `.agents/orchestration.config.json`.
+`orch: <task>` | **Per-Task Trigger**: Runs the given task with multi-agent orchestration (e.g. `orch: add oauth auth`).
+`/orchestrate on` | **Workspace Toggle**: Activates continuous ambient orchestration for all complex tasks without needing the `orch:` prefix.
+`/orchestrate off` | **Workspace Toggle**: Reverts to default opt-in mode (orchestration only triggers when prefixed with `orch:`).
+`/orchestrate cancel` | **Abort In-Flight**: Immediately terminates all running subagents and restores manual control.
+`/orchestrate init` | Interactive onboarding: configures model tiers, tracking mode, and writes settings to `AGENTS.md`.
 `/orchestrate update` | Re-configures role-to-model assignments and execution policies without manual edits.
 `/orchestrate status` | Inspects currently active subagents, background tasks, and token efficiency statistics.
 
 > [!NOTE]
-> **Ambient Execution**: Task decomposition and parallel dispatch do NOT require a slash command. Once initialized, the Supervisor automatically decomposes complex, multi-file requests and delegates them ambiently according to `AGENTS.md`.
+> **Default Behavior**: By default, the main model executes tasks **solo / directly**. Multi-agent orchestration only engages when triggered via the `orch:` prefix or when the workspace toggle is turned `/orchestrate on`.
 
 ---
 
@@ -84,14 +88,27 @@ When the user triggers `/orchestrate update`:
 
 ---
 
-## 3. Ambient Task Decomposition & Parallel Dispatch (Autonomous Runtime)
+## 3. Activation Conditions, Visibility Banner & Task Decomposition
 
-Orchestration is **ambient**: the user does not run a special command to invoke it. When a user presents any request, the Supervisor automatically applies the **Task Complexity Threshold**:
+### Activation Conditions (Opt-In by Default)
+To ensure the primary model handles normal tasks directly without unwanted subagent overhead, orchestration runs **only** when one of these conditions is met:
 
-* **Trivial / Direct Tasks** (single-line fix, answering a question, inspecting one function):
-  * The Supervisor executes directly. Spawning subagents for micro-edits is avoided to prevent dispatch latency and overhead.
-* **Complex / Multi-file / Multi-step Tasks** (adding features across modules, deep codebase exploration, writing tests):
-  * The Supervisor automatically engages the decomposition and delegation protocol below:
+1. **Per-Task Trigger (`orch:`)**: The user prefixes their prompt with `orch:`, for example:
+   > `orch: add rate limiting middleware and write tests`
+2. **Workspace Toggle (`/orchestrate on`)**: The user has explicitly turned orchestration on for the workspace. (Can be reverted anytime with `/orchestrate off`).
+
+> [!IMPORTANT]
+> **Mandatory Activation Banner**:
+> Whenever orchestration is engaged, the agent **MUST prepend an alert banner at the very top of its initial response**:
+> ```markdown
+> > [!NOTE]
+> > 🚀 **Orchestration Active**: Multi-agent delegation engaged. Sub-tasks assigned to tiered models per `AGENTS.md`.
+> ```
+> This provides immediate visual transparency so the user always knows whether subagents are running.
+
+When activated, the Supervisor applies the **Task Complexity Threshold**:
+* **Trivial / Single-step Tasks**: Handled directly to avoid dispatch latency.
+* **Complex / Multi-file / Multi-step Tasks**: Decomposed into the phases below:
 
 ### Phase 1: Task Decomposition
 1. Break down the user's objective into distinct, isolated units of work.

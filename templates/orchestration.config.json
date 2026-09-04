@@ -49,6 +49,12 @@
       "maxContextTargetTokens": 30000
     }
   },
+  "activation": {
+    "defaultMode": "opt_in",
+    "triggerPrefix": "orch:",
+    "workspaceContinuousEnabled": false,
+    "notifyOnActivation": true
+  },
   "dispatchPolicy": {
     "allowParallel": true,
     "maxConcurrentSubagents": 4,

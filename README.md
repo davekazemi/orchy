@@ -117,15 +117,33 @@ You can press `y` to accept the smart recommendations, or enter custom model num
 ```
 Allows switching any subagent role (e.g. promoting the Implementer to `pro` for complex refactors, or switching the Tester to `flash`).
 
-### 3. Ambient Execution (Zero Commands Required)
-You never need to remember or run an explicit dispatch command. You simply interact with the agent normally:
-> *"Add token expiry validation in auth.py and update the unit test suite."*
+### 3. How Orchestration Runs (Opt-In by Default)
 
-The Supervisor reads `AGENTS.md` and automatically:
-1. **Evaluates Task Complexity**: Trivial single-line fixes are handled directly; complex multi-file tasks trigger decomposition.
-2. **Checks File Safety**: Verifies that parallel subagents do not edit conflicting files.
-3. **Dispatches Tiered Subagents**: Spawns `flash` for coding and `flash_lite` for testing concurrently.
-4. **Compresses & Synthesizes**: Ingests only verified test assertions and diff summaries, keeping the main context window lean.
+By default, the primary model works **solo / directly** on tasks to avoid unnecessary dispatch latency.
+
+#### Option A: Per-Task Trigger (`orch:`)
+Simply prepend `orch:` to any complex task:
+> `orch: add token expiry validation in auth.py and update the unit test suite`
+
+#### Option B: Workspace Continuous Toggle
+To enable auto-orchestration for all complex tasks without typing `orch:`:
+```text
+/orchestrate on
+```
+To revert back to requiring the `orch:` prefix:
+```text
+/orchestrate off
+```
+
+#### Mandatory Transparency Banner
+Whenever multi-agent orchestration engages (either via `orch:` or `/orchestrate on`), the agent **always displays an alert notice at the very top of its initial response**:
+
+```markdown
+> [!NOTE]
+> 🚀 **Orchestration Active**: Delegating sub-tasks across tiered subagents (Implementer: `flash`, Tester: `flash_lite`, Scout: `flash_lite`).
+```
+
+This ensures complete clarity—you always know exactly when subagents are working on your behalf.
 
 ---
 

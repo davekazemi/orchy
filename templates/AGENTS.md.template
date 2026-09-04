@@ -21,7 +21,19 @@ Routine, high-volume, or exploratory operations **must be delegated** to special
 | **Reviewer** | Spec & Standards Critique | `{{REVIEWER_MODEL}}` | Standards adherence, spec validation, diff critique | Read-only |
 
 
-## 2. Dispatch & Concurrency Rules
+## 2. Activation Triggers & Transparency Banner
+
+1. **Activation**: Multi-agent delegation is **opt-in by default**. It activates ONLY when:
+   - The user's prompt begins with `orch:` (e.g. `orch: build feature x`), OR
+   - The workspace toggle is turned on via `/orchestrate on`.
+   - In all other cases, execute tasks **solo / directly** with the main model.
+2. **Mandatory Transparency Banner**: Whenever orchestration activates, prepend this notice at the very top of your initial response:
+   ```markdown
+   > [!NOTE]
+   > 🚀 **Orchestration Active**: Delegating sub-tasks across tiered subagents (Implementer: `{{IMPLEMENTER_MODEL}}`, Tester: `{{TESTER_MODEL}}`, Scout: `{{SCOUT_MODEL}}`).
+   ```
+
+## 3. Dispatch & Concurrency Rules
 
 1. **Strict File Isolation**: Never spawn two parallel subagents that modify the same file. Parallel subagents must target strictly disjoint file paths or directory sub-trees.
 2. **Context Compression**: Subagents must return only structured findings:
