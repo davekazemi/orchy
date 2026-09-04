@@ -1,6 +1,6 @@
 # Project Orchestration Task Board
 
-> Managed by `agent-orchestrator`. **Single writer: the Supervisor.** Subagents propose discoveries and report results in their return contract; they never edit this file.
+> Managed by `orchy`. **Single writer: the Supervisor.** Subagents propose discoveries and report results in their Handover Result; they never edit this file.
 
 ## 🟢 Open Tickets
 <!-- Tickets ready to be dispatched to subagents -->

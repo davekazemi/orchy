@@ -15,10 +15,10 @@ Large tasks should be decoupled into two layers:
 2. **Micro Layer (Subagents / Execution)**:
    * Short-lived workers spawned to fulfill a specific ticket.
    * Runs in parallel using lightweight models (`flash`, `flash_lite`).
-   * Returns a result contract with proposed discoveries; the Supervisor verifies, commits, and closes.
+   * Returns a Handover Result with proposed discoveries; the Supervisor verifies, commits, and closes.
 
 ### Single-Writer Rule
-Only the Supervisor mutates shared state: `.agents/TICKETS.md`, `.agents/orchestration-metrics.jsonl`, `git add`/`commit`/`push`, and `gh`. Workers propose; the Supervisor writes. Reasons:
+Only the Supervisor mutates shared state: `.agents/TICKETS.md`, `.agents/orchy-metrics.jsonl`, `git add`/`commit`/`push`, and `gh`. Workers propose; the Supervisor writes. Reasons:
 * A board edited by parallel workers is a write race on a single file, the exact hazard the disjoint-file invariant prevents.
 * All workers share one git index; concurrent commits collide even when edited files are disjoint.
 * Closure must follow **independent** verification by the Supervisor, not a worker's self-report.
@@ -40,7 +40,7 @@ Add token expiry validation in src/auth/token.py and corresponding unit tests.
 - Implementer: Model=flash
 - Tester: Model=flash_lite
 " \
-  --label "orchestrate:task"
+  --label "orchy:task"
 ```
 
 ### Branches & PRs
@@ -81,7 +81,7 @@ When planning a feature, the Supervisor adds tickets to `## 🟢 Open Tickets`, 
 #### 2. Discovery by Subagents (proposed, recorded by Supervisor)
 While executing `#T-101`, if the subagent discovers an unhandled edge case or missing service:
 1. The subagent does NOT unilaterally expand its scope to rewrite foreign files.
-2. The subagent does NOT edit `.agents/TICKETS.md`. It lists the item under `Proposed Discoveries` in its result contract.
+2. The subagent does NOT edit `.agents/TICKETS.md`. It lists the item under `Proposed Discoveries` in its Handover Result.
 3. The Supervisor accepts or rejects each proposal and records accepted ones under `## 🟣 Subagent Discoveries`:
 ```markdown
 - [ ] **#T-102: Redis dependency needed for distributed rate limiting (discovered during #T-101)**

@@ -1,7 +1,7 @@
-<!-- agent-orchestration:start -->
+<!-- orchy:start -->
 # Cost-Optimized Agent Orchestration Matrix
 
-> Managed by `agent-orchestrator`. Designed to minimize token costs and preserve the Supervisor's context window.
+> Managed by `orchy`. Designed to minimize token costs and preserve the Supervisor's context window.
 
 ## 1. Supervisor Role & Model Tiers
 
@@ -10,7 +10,7 @@ The main conversational agent operates as the **Supervisor** (Model: `{{SUPERVIS
 - Creating the execution plan, decomposing tasks into independent units, and ordering them by dependency.
 - Managing subagent concurrency and model selection.
 - Independently re-verifying subagent claims, reviewing combined diffs, and ensuring integration integrity.
-- All writes to shared state: `.agents/TICKETS.md`, `.agents/orchestration-metrics.jsonl`, `git commit`/`push`, and `gh`.
+- All writes to shared state: `.agents/TICKETS.md`, `.agents/orchy-metrics.jsonl`, `git commit`/`push`, and `gh`.
 
 Routine, high-volume, or exploratory operations **must be delegated** to specialized subagents matching these capability profiles:
 
@@ -26,8 +26,8 @@ No subagent runs `git add`/`commit`/`push`, calls `gh`, or edits `.agents/TICKET
 ## 2. Activation Triggers & Transparency Banner
 
 1. **Activation**: Multi-agent delegation is **opt-in by default**. It activates ONLY when:
-   - The user's prompt begins with `orch:` (e.g. `orch: build feature x`), OR
-   - The workspace toggle is turned on via `/orchestrate on`.
+   - The user's prompt begins with `orchy:` (e.g. `orchy: build feature x`), OR
+   - The workspace toggle is turned on via `orchy on`.
    - In all other cases, execute tasks **solo / directly** with the main model.
 2. **Complexity Threshold**: Even when activated, orchestrate only if the task spans 3+ files across 2+ modules, needs ~10+ file reads before planning, or contains 2+ genuinely independent units. Smaller tasks run solo; orchestration overhead exceeds the savings. In `context-only` mode, double these thresholds.
 3. **Mandatory Transparency Banner**: Whenever orchestration activates, prepend this notice at the very top of your initial response:
@@ -36,7 +36,7 @@ No subagent runs `git add`/`commit`/`push`, calls `gh`, or edits `.agents/TICKET
    > 🚀 **Orchestration Active** (mode: `{{RUNTIME_MODE}}`): Delegating sub-tasks across tiered subagents (Implementer: `{{IMPLEMENTER_MODEL}}`, Tester: `{{TESTER_MODEL}}`, Scout: `{{SCOUT_MODEL}}`).
    ```
    In `context-only` mode the banner must also state "no cost savings expected".
-4. **Metrics Ledger**: After every orchestrated task, append one JSON line to `.agents/orchestration-metrics.jsonl` with mode, wall time, per-role token usage, retries, verification result, and whether counts were runtime-reported or estimated. Never present an estimate as a measurement.
+4. **Metrics Ledger**: After every orchestrated task, append one JSON line to `.agents/orchy-metrics.jsonl` with mode, wall time, per-role token usage, retries, verification result, and whether counts were runtime-reported or estimated. Never present an estimate as a measurement.
 
 ## 3. Dispatch & Concurrency Rules
 
@@ -44,16 +44,18 @@ No subagent runs `git add`/`commit`/`push`, calls `gh`, or edits `.agents/TICKET
 2. **Hotspot Files**: Package manifests, lockfiles, barrel/`index` files, route registries, DI containers, migrations, and `.agents/TICKETS.md` are serialized or reserved for the Supervisor to edit once after the wave.
 3. **Dependency Order**: Disjoint paths are not sufficient. If unit B consumes an interface unit A changes, run B in a later wave or freeze the exact new contract into both prompts. Only units with no unresolved edges share a wave.
 4. **Checkpoint Before Dispatch**: Require a clean working tree or record HEAD / `git stash`, so a failed wave can be reverted as a unit.
-5. **Context Compression**: Subagents must return only structured findings:
+5. **Handover Context (Supervisor → worker)**: Never pass the Supervisor's conversation or full context to a subagent. Each worker gets one need-to-know packet: objective for its unit, scope (may modify / may read / must not touch), Known Facts already resolved by the Scout, frozen interfaces verbatim, short excerpts of code it will certainly need, constraints, the exact verification command, and the instruction to return a Handover Result. Discovery runs once and is sliced per worker; no worker re-searches for what the Supervisor already knows.
+6. **Handover Result (worker → Supervisor)**: Subagents reply with only this structured packet; the Supervisor reads nothing else from them:
    - Status (SUCCESS / FAILED / BLOCKED)
-   - Specific files modified or inspected
+   - Files touched, which the Supervisor checks against the handed-over scope (out-of-scope edits are reverted and the unit fails)
    - Terse diff summary (no full file dumps)
    - Verification command plus the last ~20 lines of its raw output, verbatim
+   - Interface notes for sibling units (new exports, changed signatures, config keys)
    - Proposed discoveries (out-of-scope issues) for the Supervisor to record
-6. **Independent Verification**: A subagent's self-report is a claim. Before committing or closing a ticket, the Supervisor re-runs the verification command itself (or via a fresh Tester that has not seen the claim). Only the independent result is recorded.
-7. **Loopback & Iteration**: When verification fails:
+7. **Independent Verification**: A subagent's self-report is a claim. Before committing or closing a ticket, the Supervisor re-runs the verification command itself (or via a fresh Tester that has not seen the claim). Only the independent result is recorded.
+8. **Loopback & Iteration**: When verification fails:
    - With live messaging (`full` mode): send targeted feedback via `send_message` with the exact error.
-   - Without live messaging: respawn a fresh worker with the previous result, the exact error, and the same scope; allow one such retry.
+   - Without live messaging: respawn a fresh worker with the same Handover Context plus a Prior Attempt section (previous Handover Result and exact error); allow one such retry.
    - If a subagent fails verification twice on the same step, halt and escalate to the human user.
-8. **Partial Wave Failure**: Commit a partially successful wave only if the successful subset is independently coherent; otherwise revert to the checkpoint and re-plan.
-<!-- agent-orchestration:end -->
+9. **Partial Wave Failure**: Commit a partially successful wave only if the successful subset is independently coherent; otherwise revert to the checkpoint and re-plan.
+<!-- orchy:end -->

@@ -1,9 +1,9 @@
 ---
-name: agent-orchestrator
+name: orchy
 description: Hierarchical cost-optimized agent orchestration skill. Sets up a Supervisor agent with lightweight tiered subagents (Scout, Implementer, Tester, Reviewer) using flash/flash_lite models. Provides runtime capability detection with fallback modes, interactive init and update workflows, task decomposition, dependency-ordered non-conflicting dispatch, independent verification of subagent claims, context window pruning, and single-writer Git/GitHub ticketing integration.
 ---
 
-# Agent Orchestrator: Cost & Context Optimization Skill
+# orchy: Cost & Context Optimization Skill
 
 This skill organizes agent workflows into a **Hierarchical Supervisor-Subagent architecture**. The primary conversational agent acts as the **Supervisor** (focusing on high-level reasoning, planning, synthesis, and user alignment), while delegating code exploration, drafting, testing, and review to specialized, cost-effective subagent tiers (`flash` and `flash_lite`).
 
@@ -13,31 +13,33 @@ This skill organizes agent workflows into a **Hierarchical Supervisor-Subagent a
 
 Command / Trigger | Description
 :--- | :---
-`orch: <task>` | **Per-Task Trigger**: Runs the given task with multi-agent orchestration (e.g. `orch: add oauth auth`).
-`/orchestrate on` | **Workspace Toggle**: Activates continuous ambient orchestration for all complex tasks without needing the `orch:` prefix.
-`/orchestrate off` | **Workspace Toggle**: Reverts to default opt-in mode (orchestration only triggers when prefixed with `orch:`).
-`/orchestrate cancel` | **Abort In-Flight**: Immediately terminates all running subagents and restores manual control.
-`/orchestrate init` | Interactive onboarding: configures model tiers, tracking mode, and writes settings to `AGENTS.md`.
-`/orchestrate update` | Re-configures role-to-model assignments and execution policies without manual edits.
-`/orchestrate status` | Inspects currently active subagents, detected runtime mode, and the token/cost ledger summary (see Section 7).
+`orchy: <task>` | **Per-Task Trigger**: Runs the given task with multi-agent orchestration (e.g. `orchy: add oauth auth`).
+`orchy on` | **Workspace Toggle**: Activates continuous ambient orchestration for all complex tasks without needing the `orchy:` prefix.
+`orchy off` | **Workspace Toggle**: Reverts to default opt-in mode (orchestration only triggers when prefixed with `orchy:`).
+`orchy cancel` | **Abort In-Flight**: Immediately terminates all running subagents and restores manual control.
+`orchy init` | Interactive onboarding: configures model tiers, tracking mode, and writes settings to `AGENTS.md`.
+`orchy update` | Re-configures role-to-model assignments and execution policies without manual edits.
+`orchy status` | Inspects currently active subagents, detected runtime mode, and the token/cost ledger summary (see Section 7).
+
+All commands are plain chat messages beginning with the word `orchy` (no leading slash), so they work in any runtime regardless of whether it supports slash commands. `orchy:` (with a colon) followed by a task is the per-task trigger; `orchy <verb>` is a command.
 
 > [!NOTE]
-> **Default Behavior**: By default, the main model executes tasks **solo / directly**. Multi-agent orchestration only engages when triggered via the `orch:` prefix or when the workspace toggle is turned `/orchestrate on`.
+> **Default Behavior**: By default, the main model executes tasks **solo / directly**. Multi-agent orchestration only engages when triggered via the `orchy:` prefix or when the workspace toggle is turned `orchy on`.
 
 > [!IMPORTANT]
-> **Uninitialized workspace safeguard**: `orch:` and `/orchestrate on` require a configured workspace. If `.agents/orchestration.config.json` is absent and `AGENTS.md` contains no `<!-- agent-orchestration:start -->` block, do not dispatch anything. Run the `/orchestrate init` flow first (Section 2), then resume the original request. Details in Section 4.
+> **Uninitialized workspace safeguard**: `orchy:` and `orchy on` require a configured workspace. If `.agents/orchy.config.json` is absent and `AGENTS.md` contains no `<!-- orchy:start -->` block, do not dispatch anything. Run the `orchy init` flow first (Section 2), then resume the original request. Details in Section 4.
 
 ---
 
 ## 1. Runtime Capability Detection & Fallback Modes
 
-The dispatch mechanics below are written against Antigravity tool names (`invoke_subagent`, `send_message`, `manage_subagents`). Other runtimes expose different, often weaker, primitives. Before the first dispatch of a session, and during `/orchestrate init`, the agent MUST determine which primitives actually exist and select a fallback mode. Never assume a tool is present because this document names it.
+The dispatch mechanics below are written against Antigravity tool names (`invoke_subagent`, `send_message`, `manage_subagents`). Other runtimes expose different, often weaker, primitives. Before the first dispatch of a session, and during `orchy init`, the agent MUST determine which primitives actually exist and select a fallback mode. Never assume a tool is present because this document names it.
 
 | Capability | Antigravity | Typical Equivalent Elsewhere | Behavior If Absent |
 | :--- | :--- | :--- | :--- |
 | **Spawn subagent** | `invoke_subagent` | Claude Code `Task`, Cursor background agents, Augment `sub-agent-*` | Orchestration cannot engage. Run solo and say so. |
 | **Per-subagent model selection** | `Model` field | Frequently unavailable | Tiering is impossible; delegation still isolates context but saves no cost. Warn the user and raise the complexity threshold. |
-| **Message a running subagent** | `send_message` | Usually absent (subagents are synchronous and stateless) | Feedback = respawn a fresh worker with the prior result and exact error embedded in the prompt. Each retry re-pays cold-start context. |
+| **Message a running subagent** | `send_message` | Usually absent (subagents are synchronous and stateless) | Feedback = respawn a fresh worker with the same Handover Context plus the prior Handover Result and exact error. Each retry re-pays the packet. |
 | **Terminate subagent** | `manage_subagents(Action='kill')` | Usually absent | Two-strike rule = stop dispatching and escalate. |
 | **Parallel dispatch** | Multiple `Subagents` entries | Parallel tool calls | Dispatch sequentially. |
 
@@ -48,15 +50,15 @@ The dispatch mechanics below are written against Antigravity tool names (`invoke
 | `full` | Spawn + per-role models + live messaging | Everything in this document applies as written. |
 | `tiered-sync` | Spawn + per-role models, no live messaging | Feedback loop uses respawn-with-context; cap retries at 1 before escalating. |
 | `context-only` | Spawn only, single model | Delegate for context isolation only. Orchestrate only large tasks (double the complexity threshold); expect no cost savings. |
-| `solo` | No spawn primitive | Orchestration disabled. `orch:` prints a one-line notice and proceeds directly. |
+| `solo` | No spawn primitive | Orchestration disabled. `orchy:` prints a one-line notice and proceeds directly. |
 
-Record the detected mode in `.agents/orchestration.config.json` under `runtime.detectedMode` and name it in the activation banner.
+Record the detected mode in `.agents/orchy.config.json` under `runtime.detectedMode` and name it in the activation banner.
 
 ---
 
-## 2. Initialization Workflow (`/orchestrate init`)
+## 2. Initialization Workflow (`orchy init`)
 
-When the user runs `/orchestrate init` (or asks to set up agent orchestration):
+When the user runs `orchy init` (or asks to set up agent orchestration):
 
 ### Step 0: Runtime Capability Probe
 Run the capability detection from Section 1 and record `runtime.capabilities` and `runtime.detectedMode`. If the mode is `solo`, stop here and report that orchestration is unavailable in this runtime.
@@ -101,21 +103,21 @@ Ticketing & Task Tracking Preference:
 ```
 
 ### Step 3: Persist Configuration
-1. Record choices in `.agents/orchestration.config.json` with the selected model names, capability requirements, and the detected runtime mode.
+1. Record choices in `.agents/orchy.config.json` with the selected model names, capability requirements, and the detected runtime mode.
 2. In the target workspace's `AGENTS.md` (creating it if absent):
-   * Look for existing `<!-- agent-orchestration:start -->` marker.
+   * Look for existing `<!-- orchy:start -->` marker.
    * Inject or update the orchestration matrix using `templates/AGENTS.md.template`.
 3. Report the saved configuration back to the user with an estimated token efficiency summary.
 
 ---
 
-## 3. Reconfiguration Workflow (`/orchestrate update`)
+## 3. Reconfiguration Workflow (`orchy update`)
 
-When the user triggers `/orchestrate update`:
-1. Read the current configuration from `.agents/orchestration.config.json` or `AGENTS.md`.
+When the user triggers `orchy update`:
+1. Read the current configuration from `.agents/orchy.config.json` or `AGENTS.md`.
 2. Present the current mapping in a clear table.
 3. Prompt the user: "Which role would you like to update? (1) Supervisor, (2) Scout, (3) Implementer, (4) Tester, (5) Reviewer, (6) Parallelism limits, (7) Runtime capability overrides / re-probe".
-4. Update `.agents/orchestration.config.json` and refresh the section in `AGENTS.md`.
+4. Update `.agents/orchy.config.json` and refresh the section in `AGENTS.md`.
 
 ---
 
@@ -124,22 +126,22 @@ When the user triggers `/orchestrate update`:
 ### Activation Conditions (Opt-In by Default)
 To ensure the primary model handles normal tasks directly without unwanted subagent overhead, orchestration runs **only** when one of these conditions is met:
 
-1. **Per-Task Trigger (`orch:`)**: The user prefixes their prompt with `orch:`, for example:
-   > `orch: add rate limiting middleware and write tests`
-2. **Workspace Toggle (`/orchestrate on`)**: The user has explicitly turned orchestration on for the workspace. (Can be reverted anytime with `/orchestrate off`).
+1. **Per-Task Trigger (`orchy:`)**: The user prefixes their prompt with `orchy:`, for example:
+   > `orchy: add rate limiting middleware and write tests`
+2. **Workspace Toggle (`orchy on`)**: The user has explicitly turned orchestration on for the workspace. (Can be reverted anytime with `orchy off`).
 
 ### Uninitialized Workspace Safeguard
 Before acting on either trigger, check that the workspace is configured:
-* `.agents/orchestration.config.json` exists, **or**
-* `AGENTS.md` contains a `<!-- agent-orchestration:start -->` block.
+* `.agents/orchy.config.json` exists, **or**
+* `AGENTS.md` contains a `<!-- orchy:start -->` block.
 
 If neither is present, the workspace has never been initialized. Do **not** guess model tiers, do not assume a runtime mode, and do not spawn subagents. Instead:
-1. Tell the user: "Orchestration is not initialized in this workspace. Running `/orchestrate init` first."
+1. Tell the user: "Orchestration is not initialized in this workspace. Running `orchy init` first."
 2. Run the full init flow from Section 2 (capability probe, model menu, ticketing choice, persist).
 3. If the probe returns `solo`, or the user declines the init prompts, execute the original request directly and say so.
 4. Otherwise resume the original request with orchestration, applying the complexity threshold and banner as normal.
 
-Treat a `.agents/orchestration.config.json` that fails to parse the same as absent. If `AGENTS.md` has the block but the config file is missing, rebuild the config from the block's values and continue without re-prompting.
+Treat a `.agents/orchy.config.json` that fails to parse the same as absent. If `AGENTS.md` has the block but the config file is missing, rebuild the config from the block's values and continue without re-prompting.
 
 > [!IMPORTANT]
 > **Mandatory Activation Banner**:
@@ -156,7 +158,7 @@ When activated, the Supervisor applies the **Task Complexity Threshold**. Orches
 * Exploration is expected to exceed roughly **10 file reads or broad greps** before a plan can be formed.
 * The task contains **2+ independent units** that can genuinely run in parallel after dependency analysis (Phase 2).
 
-Otherwise handle the task directly: for small tasks, decomposition, cold-start context for each worker, and synthesis cost more Supervisor tokens than they save. In `context-only` mode, double these thresholds.
+Otherwise handle the task directly: for small tasks, decomposition, writing a Handover Context for each worker, and synthesis cost more Supervisor tokens than they save. In `context-only` mode, double these thresholds.
 
 Complex tasks are decomposed into the phases below:
 
@@ -184,9 +186,9 @@ Complex tasks are decomposed into the phases below:
 Before dispatching a wave:
 1. **Checkpoint**: require a clean working tree, or record HEAD / `git stash` so a failed wave can be reverted as a unit.
 2. **Concurrency**: respect `dispatchPolicy.maxConcurrentSubagents`, and lower it if the provider rate-limits; four throttled workers are slower than two that are not.
-3. **Context handoff**: workers start cold. Paste the relevant Scout findings (paths, symbols, conventions) into each worker prompt rather than making every worker rediscover them.
+3. **Handover Context**: workers start with an empty context and must **not** be given a copy of the Supervisor's. Build one need-to-know packet per worker (format in `references/dispatch-guidelines.md` Section 4.2): objective for this unit only, scope (may modify / may read / must not touch), Known Facts resolved by the Scout, frozen interfaces verbatim, short verbatim excerpts of the code it will certainly open, constraints, the exact verification command, and the instruction to reply with a Handover Result. Discovery is done once and its relevant slice fanned out; no worker should re-grep for something the Supervisor or Scout already located. Leave out the user conversation, other units' scopes, ticket contents, and previous waves.
 
-Use the configured model tiers where the runtime supports them:
+Use the configured model tiers where the runtime supports them. Each `Prompt` is a Handover Context:
 
 ```json
 {
@@ -195,27 +197,29 @@ Use the configured model tiers where the runtime supports them:
       "TypeName": "self",
       "Role": "Backend Implementer",
       "Model": "flash",
-      "Prompt": "Implement user authentication endpoint in src/api/auth.py according to implementation_plan.md. Scope: src/api/auth.py only. Do not edit other files, commit, or touch .agents/TICKETS.md. Run pytest tests/test_auth.py. Return the standard result contract: status, modified files, terse diff summary, last 20 lines of raw test output, proposed discoveries."
+      "Prompt": "## Handover Context\n- Objective: add a POST /auth/login endpoint that validates credentials and returns a JWT.\n- Role & Tier: implementer, flash.\n- Scope: may modify src/api/auth.py; may read src/api/, src/models/user.py, tests/test_auth.py; must not touch anything else, .agents/TICKETS.md, git, or gh.\n- Known Facts: routes are registered with @router.post in src/api/*.py; User model is src/models/user.py:User with verify_password(plain) -> bool; JWT helper is src/core/security.py:create_access_token(sub: str, expires_minutes: int) -> str; tests use pytest + httpx AsyncClient fixture 'client' from tests/conftest.py.\n- Frozen Interfaces (do not change): response body {\"access_token\": str, \"token_type\": \"bearer\"}; request body {\"email\": str, \"password\": str}.\n- Relevant Excerpts: src/api/users.py lines 12-31 (existing router pattern): <paste>.\n- Constraints: no new dependencies; return 401 on bad credentials, not 400.\n- Verification: pytest tests/test_auth.py -q ; all tests must pass.\n- Return: reply with a Handover Result only (status, files touched, diff summary, verification command + last 20 raw output lines, interface notes, proposed discoveries, blockers). No exploration logs, no full files."
     },
     {
       "TypeName": "self",
       "Role": "Frontend Implementer",
       "Model": "flash",
-      "Prompt": "Implement the login form component in src/components/Login.tsx. Scope: src/components/Login.tsx only. Do not edit other files, commit, or touch .agents/TICKETS.md. Run the linter. Return the standard result contract: status, modified files, terse diff summary, last 20 lines of raw lint output, proposed discoveries."
+      "Prompt": "## Handover Context\n- Objective: build the login form component and wire it to the login API.\n- Role & Tier: implementer, flash.\n- Scope: may modify src/components/Login.tsx; may read src/components/, src/api/client.ts; must not touch anything else, .agents/TICKETS.md, git, or gh.\n- Known Facts: API client is src/api/client.ts:post(path, body); components use function components + Tailwind; lint is 'npm run lint'.\n- Frozen Interfaces (do not change): POST /auth/login accepts {email, password} and returns {access_token, token_type}.\n- Relevant Excerpts: src/components/Signup.tsx lines 1-40 (form pattern to mirror): <paste>.\n- Constraints: no new dependencies; no global state changes.\n- Verification: npm run lint ; exit 0.\n- Return: reply with a Handover Result only (status, files touched, diff summary, verification command + last 20 raw output lines, interface notes, proposed discoveries, blockers). No exploration logs, no full files."
     }
   ]
 }
 ```
 
-### Phase 4: Context Compression, Independent Verification & Synthesis
-To keep the Supervisor's context window clean:
-1. **Discard Intermediate Noise**: The Supervisor does not retain the subagent's step-by-step exploration logs.
-2. **Accept Only Structured Summaries**: Subagents must return:
+### Phase 4: Handover Result, Independent Verification & Synthesis
+The Supervisor consumes only the worker's **Handover Result** (format in `references/dispatch-guidelines.md` Section 4.3):
+1. **Discard Intermediate Noise**: The Supervisor does not read or retain the subagent's step-by-step exploration logs, tool output, or reasoning. If the runtime returns them, skip to the Handover Result.
+2. **Accept Only the Handover Result**, which must contain:
    * Status (`SUCCESS` / `FAILED` / `BLOCKED`)
-   * Affected file list
+   * Files touched, checked against the handed-over Scope; any out-of-scope file is reverted and the unit is treated as FAILED
    * Terse diff summary
    * Verification command and the **last ~20 lines of its raw output** (not a paraphrase)
+   * Interface notes (new exports, changed signatures, new config keys), which are copied into the Handover Context of dependent units in the next wave
    * Proposed discoveries (out-of-scope issues found; see Section 5)
+   * Token usage, if the runtime exposes it, for the metrics ledger (Section 7)
 3. **Treat self-reports as claims, not evidence**: a `flash_lite` worker reporting `12 passed` can be wrong. Before closing a ticket or committing, the Supervisor re-runs the verification command itself (or dispatches a fresh Tester that has not seen the claimed result) and compares. Only the independent run counts.
 4. **Supervisor Integration Review**: The Supervisor inspects the combined diff as a coherent whole, ensuring naming consistency and interface compatibility across units, especially at any interface-freeze boundary from Phase 2.
 
@@ -224,7 +228,7 @@ If a subagent's work fails verification or produces errors:
 1. Do not rewrite the code directly in the Supervisor's context.
 2. Send targeted feedback to the worker:
    * In `full` mode, use `send_message` to the existing subagent with the exact test failure or lint error and the specific file/line to fix.
-   * Without live messaging, respawn a fresh worker whose prompt contains the previous result contract, the exact error, and the same scope. This re-pays cold-start cost, so cap it at one retry.
+   * Without live messaging, respawn a fresh worker with the **same Handover Context** plus a `Prior Attempt` section containing the previous Handover Result and the exact error. Reusing the packet means the retry costs the packet again, not a fresh discovery; still cap it at one retry.
 3. If the worker fails twice on the same step, stop dispatching for that unit and ask the human user for guidance. Re-decompose only if the user agrees.
 4. **Partial wave failure**: if some units of a wave succeed and one fails, do not commit the successful subset unless it is independently coherent (builds, tests pass, no dangling references to the failed unit). Otherwise revert to the Phase 3 checkpoint and re-plan.
 
@@ -232,10 +236,10 @@ If a subagent's work fails verification or produces errors:
 
 ## 5. Ticketing & Task Tracking Integration
 
-The orchestrator supports two interchangeable tracking modes configured during `/orchestrate init`.
+The orchestrator supports two interchangeable tracking modes configured during `orchy init`.
 
 > [!IMPORTANT]
-> **Single-Writer Rule**: only the Supervisor writes to `.agents/TICKETS.md` and `.agents/orchestration-metrics.jsonl`, runs `git commit`/`push`, or calls `gh`. Subagents *propose* discoveries and closures inside their result contract; they never mutate the board or repository history. A shared board edited by parallel workers is the same write race the disjoint-file invariant exists to prevent.
+> **Single-Writer Rule**: only the Supervisor writes to `.agents/TICKETS.md` and `.agents/orchy-metrics.jsonl`, runs `git commit`/`push`, or calls `gh`. Subagents *propose* discoveries and closures inside their Handover Result; they never mutate the board or repository history. A shared board edited by parallel workers is the same write race the disjoint-file invariant exists to prevent.
 
 ### Option A: Local Markdown Tracker (`.agents/TICKETS.md`) [Default]
 Ideal for local projects, offline work, or repositories without remote issue trackers.
@@ -250,7 +254,7 @@ Ideal for local projects, offline work, or repositories without remote issue tra
      - **Objective**: Create reset token generation and endpoint logic.
    ```
 3. **Subagent Discoveries (proposed, not written)**:
-   * If a worker finds an unanticipated dependency or bug outside its scope, it does **not** expand scope and does **not** edit the board. It lists the item under `Proposed Discoveries` in its result contract.
+   * If a worker finds an unanticipated dependency or bug outside its scope, it does **not** expand scope and does **not** edit the board. It lists the item under `Proposed Discoveries` in its Handover Result.
    * The Supervisor records accepted discoveries under `🟣 Subagent Discoveries`:
      ```markdown
      - [ ] **#T-002: Missing email SMTP client configuration (found by #T-001)**
@@ -273,7 +277,7 @@ Ideal for local projects, offline work, or repositories without remote issue tra
 ### Option B: Remote GitHub Issues (`gh` CLI)
 Ideal for collaborative teams and open-source projects. All `gh` and `git` commands are executed by the Supervisor.
 
-1. **Ticket Creation**: Major milestones are created as GitHub issues labeled `orchestrate:task` via `gh issue create`.
+1. **Ticket Creation**: Major milestones are created as GitHub issues labeled `orchy:task` via `gh issue create`.
 2. **Branching**: For multi-step implementations, create a branch `feature/issue-<id>` before dispatching workers.
 3. **Closing**: Once the Supervisor has independently verified the combined diff and test output, commit the changes, push, and close the issue via `gh issue close <id> --comment "Resolved; verification re-run by supervisor."`.
 
@@ -293,7 +297,7 @@ Model names below are illustrative classes, not a list to trust verbatim; use wh
 
 ### Break-Even Reality Check
 Per-token ratios overstate real savings. Three costs are paid on top of them:
-* **Cold start**: every worker re-reads context the Supervisor already had.
+* **Cold start**: every worker begins empty. The Handover Context (Phase 3) bounds this to the cost of writing and sending one small packet per worker instead of a full re-discovery, but the packet is not free and a worker that still has to search re-pays the exploration.
 * **Retry inflation**: cheaper models need more iterations and more correction cycles, and the correction cycles run on the expensive Supervisor.
 * **Orchestration overhead**: decomposition, dependency analysis, synthesis, and independent verification all run on the Supervisor.
 
@@ -305,7 +309,7 @@ Net savings are meaningful on large, genuinely parallel tasks and can be zero or
 
 The ratios in Section 6 are assumptions. The Supervisor records what actually happened so the user can check them.
 
-### Metrics Ledger (`.agents/orchestration-metrics.jsonl`)
+### Metrics Ledger (`.agents/orchy-metrics.jsonl`)
 After every orchestrated task (and every solo task when `metrics.recordSoloBaseline` is true), the Supervisor appends exactly one JSON line. The Supervisor is the only writer, consistent with Section 5. Fields:
 
 ```json
@@ -324,7 +328,7 @@ Rules for populating `usage`:
 * If a role was never dispatched, omit it rather than writing zeros.
 * Record the solo baseline the same way, with `orchestrated: false` and a single `supervisor` entry.
 
-### `/orchestrate status` Summary
+### `orchy status` Summary
 When invoked, read the ledger and report:
 * Total tokens per model and the share consumed on non-Supervisor tiers.
 * Cost-weighted total using `metrics.pricing` from the config (per-million input/output prices per model). If pricing is unset, print raw tokens and say cost weighting is unavailable.
@@ -333,5 +337,5 @@ When invoked, read the ledger and report:
 * The proportion of entries with `source: estimated`, so the user knows how much of the summary is measured.
 
 ### Verification Protocol the Supervisor Should Suggest
-When the user asks whether orchestration is saving anything, do not answer from the ratio table. Recommend the A/B protocol: same task, same starting commit, once solo and once with `orch:`, comparing the provider's billing or usage dashboard before and after each run. Point out that orchestration typically spends more *total* tokens and fewer *expensive* tokens, so only a cost-weighted comparison is valid, and that a single sample proves nothing. The billing dashboard is the ground truth; if it disagrees with the ledger by more than ~20%, the ledger's `source` for that runtime should be treated as unreliable.
+When the user asks whether orchestration is saving anything, do not answer from the ratio table. Recommend the A/B protocol: same task, same starting commit, once solo and once with `orchy:`, comparing the provider's billing or usage dashboard before and after each run. Point out that orchestration typically spends more *total* tokens and fewer *expensive* tokens, so only a cost-weighted comparison is valid, and that a single sample proves nothing. The billing dashboard is the ground truth; if it disagrees with the ledger by more than ~20%, the ledger's `source` for that runtime should be treated as unreliable.
 

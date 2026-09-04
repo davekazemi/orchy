@@ -52,7 +52,7 @@
   ],
   "mainPath": ["user", "supervisor", "dispatcher", "coder", "tester", "reverifier", "commit"],
   "nodes": [
-    { "id": "user", "lane": "developer", "col": 0, "type": "external", "label": "Developer", "sublabel": "orch: directive", "width": 128 },
+    { "id": "user", "lane": "developer", "col": 0, "type": "external", "label": "Developer", "sublabel": "orchy: directive", "width": 128 },
     { "id": "supervisor", "lane": "supervisor", "col": 0, "type": "backend", "label": "Supervisor", "sublabel": "Pro / Inherit", "tag": "high reasoning", "width": 128 },
     { "id": "dispatcher", "lane": "supervisor", "col": 1, "type": "security", "label": "Task Dispatcher", "sublabel": "disjoint file safety", "tag": "wave planner", "width": 128 },
     { "id": "scout", "lane": "workers", "col": 2, "type": "cloud", "label": "Codebase Scout", "sublabel": "Flash-Lite (~90% save)", "tag": "read-only", "width": 128 },
@@ -63,7 +63,7 @@
     { "id": "commit", "lane": "persistence", "col": 4, "type": "cloud", "label": "Git Repository", "sublabel": "atomic checkpoints", "tag": "clean head", "width": 128 }
   ],
   "edges": [
-    { "id": "e1", "from": "user", "to": "supervisor", "label": "orch: task", "variant": "emphasis" },
+    { "id": "e1", "from": "user", "to": "supervisor", "label": "orchy: task", "variant": "emphasis" },
     { "id": "e2", "from": "supervisor", "to": "dispatcher", "label": "wave plan", "variant": "default" },
     { "id": "e3", "from": "dispatcher", "to": "scout", "label": "read / grep", "variant": "dashed" },
     { "id": "e4", "from": "dispatcher", "to": "coder", "label": "implement", "variant": "emphasis" },

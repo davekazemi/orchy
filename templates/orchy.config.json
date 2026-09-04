@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "version": "1.2.0",
-  "name": "agent-orchestration-config",
+  "name": "orchy-config",
   "description": "Cost-optimized agent orchestration matrix and subagent dispatch parameters",
   "supervisor": {
     "role": "Supervisor & Architect",
@@ -54,7 +54,7 @@
   },
   "activation": {
     "defaultMode": "opt_in",
-    "triggerPrefix": "orch:",
+    "triggerPrefix": "orchy:",
     "workspaceContinuousEnabled": false,
     "notifyOnActivation": true,
     "requireInitBeforeOrchestration": true,
@@ -110,7 +110,7 @@
     "markdownPath": ".agents/TICKETS.md",
     "github": {
       "syncWithIssues": true,
-      "issueLabelPrefix": "orchestrate:"
+      "issueLabelPrefix": "orchy:"
     },
     "writer": "supervisor",
     "allowSubagentTicketing": false,
@@ -118,7 +118,7 @@
   },
   "metrics": {
     "enabled": true,
-    "ledgerPath": ".agents/orchestration-metrics.jsonl",
+    "ledgerPath": ".agents/orchy-metrics.jsonl",
     "writer": "supervisor",
     "recordSoloBaseline": false,
     "estimateWhenRuntimeHasNoUsageApi": true,
