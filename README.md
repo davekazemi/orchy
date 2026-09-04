@@ -28,6 +28,19 @@ In modern AI-assisted engineering, running a top-tier reasoning model (Pro / Opu
 
 ### The Solution: Hierarchical Tiering with Supervisor-Owned Verification
 
+<p align="center">
+  <a href="assets/architecture.html">
+    <img src="assets/architecture.svg" alt="Agent Orchestration Architecture Diagram" width="100%" />
+  </a>
+</p>
+
+<p align="center">
+  <em>Generated with <a href="https://github.com/tt-a1i/archify">Archify</a>. Click the image or <a href="assets/architecture.html">open the interactive diagram</a> for animated trace flow, guided view chapters, and component inspection.</em>
+</p>
+
+<details>
+<summary><b>View Mermaid / Text Flowchart</b></summary>
+
 ```mermaid
 flowchart TD
     User([User]) <--> Supervisor[Supervisor / Architect\nModel: Pro / Inherit]
@@ -49,6 +62,8 @@ flowchart TD
     Supervisor -->|Re-run verification independently| Verify[Independent Verification]
     Verify -->|Commit · close tickets| Tracker[(TICKETS.md or GitHub Issues)]
 ```
+
+</details>
 
 Workers never commit, push, call `gh`, or edit the ticket board. The Supervisor is the single writer for shared state and closes nothing on a worker's self-report alone.
 
@@ -75,6 +90,10 @@ agent-orchestration/
 ├── README.md                         # Project documentation
 ├── LICENSE                           # MIT License
 ├── .gitignore                        # Git ignore rules
+├── assets/
+│   ├── architecture.svg              # Standalone showcase SVG diagram generated with Archify
+│   ├── architecture.html             # Explorable interactive Archify viewer
+│   └── architecture.workflow.json    # Archify diagram specification
 ├── templates/
 │   ├── AGENTS.md.template            # Injectable orchestration rules for target repos
 │   ├── orchestration.config.json     # Default role-to-model matrix, runtime mode, dispatch policy

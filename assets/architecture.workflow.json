@@ -1,0 +1,105 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Hierarchical Multi-Agent Orchestration Architecture",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "full-flow",
+        "label": "Full Orchestration Flow",
+        "focus": ["user", "supervisor", "dispatcher", "scout", "coder", "tester", "reverifier", "board", "commit"],
+        "note": "Trace task execution from user directive through tiered subagents to verified persistence."
+      },
+      {
+        "id": "control-plane",
+        "label": "Supervisor & Safety Gates",
+        "focus": ["user", "supervisor", "dispatcher", "reverifier"],
+        "note": "Plan mode, conflict detection, and independent pre-commit re-verification."
+      },
+      {
+        "id": "worker-pool",
+        "label": "Economical Subagent Pool",
+        "focus": ["scout", "coder", "tester"],
+        "note": "High-throughput exploration, scoped coding, and QA on Flash/Flash-Lite models."
+      },
+      {
+        "id": "state-persistence",
+        "label": "Single-Writer State & Metrics",
+        "focus": ["reverifier", "board", "commit"],
+        "note": "Supervisor-only writes to tickets, metrics ledger, and atomic git commits."
+      }
+    ],
+    "output": "assets/architecture.html"
+  },
+  "lanes": [
+    { "id": "developer", "label": "01 / Developer Interface" },
+    { "id": "supervisor", "label": "02 / Supervisor Control Plane" },
+    { "id": "workers", "label": "03 / Economical Subagent Workers" },
+    { "id": "persistence", "label": "04 / Single-Writer State & Evidence" }
+  ],
+  "phases": [
+    { "id": "intake", "label": "Intake & Plan", "fromCol": 0, "toCol": 1 },
+    { "id": "execution", "label": "Parallel Delegation", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "verification", "label": "Re-Verify & Commit", "fromCol": 4, "toCol": 4, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "control_group", "label": "Safety & Planning", "lane": "supervisor", "fromCol": 0, "toCol": 1, "variant": "emphasis" },
+    { "id": "worker_group", "label": "Tiered Subagent Pool (~80-90% Savings)", "lane": "workers", "fromCol": 2, "toCol": 4, "variant": "dashed" },
+    { "id": "state_group", "label": "Single-Writer Persistence", "lane": "persistence", "fromCol": 3, "toCol": 4, "variant": "security" }
+  ],
+  "mainPath": ["user", "supervisor", "dispatcher", "coder", "tester", "reverifier", "commit"],
+  "nodes": [
+    { "id": "user", "lane": "developer", "col": 0, "type": "external", "label": "Developer", "sublabel": "orch: directive", "width": 128 },
+    { "id": "supervisor", "lane": "supervisor", "col": 0, "type": "backend", "label": "Supervisor", "sublabel": "Pro / Inherit", "tag": "high reasoning", "width": 128 },
+    { "id": "dispatcher", "lane": "supervisor", "col": 1, "type": "security", "label": "Task Dispatcher", "sublabel": "disjoint file safety", "tag": "wave planner", "width": 128 },
+    { "id": "scout", "lane": "workers", "col": 2, "type": "cloud", "label": "Codebase Scout", "sublabel": "Flash-Lite (~90% save)", "tag": "read-only", "width": 128 },
+    { "id": "coder", "lane": "workers", "col": 3, "type": "backend", "label": "Feature Coder", "sublabel": "Flash (~80% save)", "tag": "scoped write", "width": 128 },
+    { "id": "board", "lane": "persistence", "col": 3, "type": "database", "label": "Task Board", "sublabel": "TICKETS.md / gh", "tag": "single-writer", "width": 128 },
+    { "id": "tester", "lane": "workers", "col": 4, "type": "messagebus", "label": "QA & Test Runner", "sublabel": "Flash-Lite (~90% save)", "tag": "cli exec", "width": 128 },
+    { "id": "reverifier", "lane": "supervisor", "col": 4, "type": "security", "label": "Re-Verifier", "sublabel": "independent test check", "tag": "trust gate", "width": 128 },
+    { "id": "commit", "lane": "persistence", "col": 4, "type": "cloud", "label": "Git Repository", "sublabel": "atomic checkpoints", "tag": "clean head", "width": 128 }
+  ],
+  "edges": [
+    { "id": "e1", "from": "user", "to": "supervisor", "label": "orch: task", "variant": "emphasis" },
+    { "id": "e2", "from": "supervisor", "to": "dispatcher", "label": "wave plan", "variant": "default" },
+    { "id": "e3", "from": "dispatcher", "to": "scout", "label": "read / grep", "variant": "dashed" },
+    { "id": "e4", "from": "dispatcher", "to": "coder", "label": "implement", "variant": "emphasis" },
+    { "id": "e5", "from": "scout", "to": "coder", "label": "context", "variant": "dashed" },
+    { "id": "e6", "from": "coder", "to": "tester", "label": "run tests", "variant": "default" },
+    { "id": "e7", "from": "tester", "to": "reverifier", "label": "claim output", "variant": "default" },
+    { "id": "e8", "from": "reverifier", "to": "board", "label": "close ticket", "variant": "dashed" },
+    { "id": "e9", "from": "reverifier", "to": "commit", "label": "git commit", "variant": "emphasis" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Supervisor Control Plane",
+      "items": [
+        "Supervisor maintains planning mode and user communication",
+        "Dispatcher enforces disjoint files and dependency order",
+        "Re-Verifier independently executes test assertions"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Tiered Subagent Economics",
+      "items": [
+        "Scouts and Testers run on Flash-Lite saving ~90% tokens",
+        "Implementers run on Flash saving ~80% tokens",
+        "Subagents return compressed contracts with raw test tails"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Single-Writer State",
+      "items": [
+        "Only the Supervisor writes to TICKETS.md and metrics",
+        "Subagents propose out-of-scope discoveries in return contract",
+        "Git checkpoints protect against partial wave failures"
+      ]
+    }
+  ]
+}
