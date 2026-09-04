@@ -50,7 +50,7 @@ Do not quote the table above as evidence. The Supervisor appends a per-task entr
 ## 3. Parallel Dispatch Rules
 
 ### The Non-Overlapping Invariant
-When dispatching multiple subagents simultaneously via `invoke_subagent` (or the runtime equivalent):
+When dispatching multiple subagents simultaneously via the runtime's spawn primitive:
 * **Rule**: Parallel subagents must operate on non-overlapping file sets.
 * **Reason**: Subagents share one working tree. If two subagents edit the same file concurrently, the last write silently overwrites the previous write without git merge conflict detection.
 
@@ -171,9 +171,9 @@ When a subagent reports a test failure or code syntax issue:
    AssertionError: expected 3600, got 0.
    Please inspect line 42 of src/auth/token.py and correct the expiry calculation.
    ```
-   * With live messaging (`full` mode): `send_message` to the existing subagent.
+   * With live messaging (`full` mode): message the existing subagent directly.
    * Without live messaging (`tiered-sync` / `context-only`): respawn a fresh worker with the **same Handover Context** plus a `Prior Attempt` section holding the previous Handover Result and the exact error. Because the packet is reused, the retry costs the packet size again, not a fresh discovery. Allow only one such retry.
-2. **Two-Strike Rule**: If a subagent fails verification twice on the same step, stop dispatching for that unit (terminate it with `manage_subagents(Action='kill')` where available) and:
+2. **Two-Strike Rule**: If a subagent fails verification twice on the same step, stop dispatching for that unit (terminate it where the runtime offers a kill primitive) and:
    * Escalate to the human user for clarification.
    * Re-decompose into smaller sub-steps only if the user agrees.
 3. **Partial Wave Failure**: If some units of a wave succeed and one fails, commit the successful subset only if it is independently coherent (builds, tests pass, no dangling references to the failed unit). Otherwise revert to the pre-wave checkpoint and re-plan.
@@ -182,7 +182,7 @@ When a subagent reports a test failure or code syntax issue:
 
 ## 6. Runtime Capability Fallbacks
 
-The tool names in this document are Antigravity's. Other runtimes differ, and most lack live messaging and per-subagent model selection. Probe before dispatching and pick a mode:
+This document describes capabilities (spawn, per-subagent model, message, terminate), not a specific runtime's tool names. Runtimes differ, and most lack live messaging and per-subagent model selection. Probe before dispatching and pick a mode:
 
 | Mode | Available | Effect |
 | :--- | :--- | :--- |

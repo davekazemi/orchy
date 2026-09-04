@@ -1,4 +1,4 @@
-# Ticketing & Git Workflow for Agent Orchestration
+# Ticketing & Git Workflow for Orchy
 
 This document explains how to integrate issue trackers (GitHub Issues or local markdown tickets) with the multi-agent orchestrator.
 

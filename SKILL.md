@@ -33,15 +33,15 @@ All commands are plain chat messages beginning with the word `orchy` (no leading
 
 ## 1. Runtime Capability Detection & Fallback Modes
 
-The dispatch mechanics below are written against Antigravity tool names (`invoke_subagent`, `send_message`, `manage_subagents`). Other runtimes expose different, often weaker, primitives. Before the first dispatch of a session, and during `orchy init`, the agent MUST determine which primitives actually exist and select a fallback mode. Never assume a tool is present because this document names it.
+The dispatch mechanics below are written against generic capabilities (spawn, per-subagent model, message, terminate, parallel), not any runtime's tool names. Every runtime exposes some subset under its own names, and most expose weaker primitives than the full set. Before the first dispatch of a session, and during `orchy init`, the agent MUST determine which capabilities actually exist and select a fallback mode. Never assume a capability is present because this document describes it.
 
-| Capability | Antigravity | Typical Equivalent Elsewhere | Behavior If Absent |
-| :--- | :--- | :--- | :--- |
-| **Spawn subagent** | `invoke_subagent` | Claude Code `Task`, Cursor background agents, Augment `sub-agent-*` | Orchestration cannot engage. Run solo and say so. |
-| **Per-subagent model selection** | `Model` field | Frequently unavailable | Tiering is impossible; delegation still isolates context but saves no cost. Warn the user and raise the complexity threshold. |
-| **Message a running subagent** | `send_message` | Usually absent (subagents are synchronous and stateless) | Feedback = respawn a fresh worker with the same Handover Context plus the prior Handover Result and exact error. Each retry re-pays the packet. |
-| **Terminate subagent** | `manage_subagents(Action='kill')` | Usually absent | Two-strike rule = stop dispatching and escalate. |
-| **Parallel dispatch** | Multiple `Subagents` entries | Parallel tool calls | Dispatch sequentially. |
+| Capability | Example Primitives | Behavior If Absent |
+| :--- | :--- | :--- |
+| **Spawn subagent** | Claude Code `Task`, Augment `sub-agent-*`, Antigravity `invoke_subagent`, Cursor background agents | Orchestration cannot engage. Run solo and say so. |
+| **Per-subagent model selection** | A `model` field on the spawn call (frequently unavailable) | Tiering is impossible; delegation still isolates context but saves no cost. Warn the user and raise the complexity threshold. |
+| **Message a running subagent** | Antigravity `send_message` (usually absent; most subagents are synchronous and stateless) | Feedback = respawn a fresh worker with the same Handover Context plus the prior Handover Result and exact error. Each retry re-pays the packet. |
+| **Terminate subagent** | Antigravity `manage_subagents(Action='kill')` (usually absent) | Two-strike rule = stop dispatching and escalate. |
+| **Parallel dispatch** | Multiple spawn entries in one call, or parallel tool calls | Dispatch sequentially. |
 
 ### Fallback Modes
 
@@ -64,7 +64,7 @@ When the user runs `orchy init` (or asks to set up agent orchestration):
 Run the capability detection from Section 1 and record `runtime.capabilities` and `runtime.detectedMode`. If the mode is `solo`, stop here and report that orchestration is unavailable in this runtime.
 
 ### Step 1: Dynamic Model Discovery & Capability Matching
-The skill is platform-neutral and functions across **Antigravity**, **Cursor**, **Claude Code**, and custom agent runners. Because available models differ across environments, the agent does NOT assume fixed model names.
+The skill is platform-neutral and functions across **Claude Code**, **Cursor**, **Codex**, **Copilot**, **Windsurf**, **Gemini CLI**, **Antigravity**, **Cline**, and custom agent runners. Because available models differ across environments, the agent does NOT assume fixed model names.
 
 Instead, the agent determines recommendations by matching each role's **Capability Requirements** against the runtime's available model tiers:
 
@@ -81,7 +81,7 @@ Instead, the agent determines recommendations by matching each role's **Capabili
 2. The agent auto-selects its **recommended smart defaults** based on the criteria above, but displays the numbered menu so the user has full control:
 
 ```text
-Configuring Agent Orchestration Roles:
+Configuring Orchy Roles:
 Available Models in this environment:
  [1] <top-tier reasoning model exposed by this runtime> (Pro / Opus-class)
  [2] <balanced model exposed by this runtime> (Flash / Sonnet-class)
@@ -104,9 +104,11 @@ Ticketing & Task Tracking Preference:
 
 ### Step 3: Persist Configuration
 1. Record choices in `.agents/orchy.config.json` with the selected model names, capability requirements, and the detected runtime mode.
-2. In the target workspace's `AGENTS.md` (creating it if absent):
-   * Look for existing `<!-- orchy:start -->` marker.
-   * Inject or update the orchestration matrix using `templates/AGENTS.md.template`.
+2. In the target workspace's `AGENTS.md`, **never overwrite the file**. The Orchy block is delimited by `<!-- orchy:start -->` / `<!-- orchy:end -->` and is the only region the skill touches:
+   * If `AGENTS.md` does not exist, create it containing only the rendered `templates/AGENTS.md.template`.
+   * If it exists without the markers, **append** the rendered block at the end, separated by a blank line. Every existing line stays exactly as it was.
+   * If it exists with the markers, replace only the text between them (inclusive); everything before and after the block is preserved byte-for-byte.
+   * If only one marker is present, do not guess: stop, show the user the malformed region, and ask before writing.
 3. Report the saved configuration back to the user with an estimated token efficiency summary.
 
 ---
@@ -117,7 +119,7 @@ When the user triggers `orchy update`:
 1. Read the current configuration from `.agents/orchy.config.json` or `AGENTS.md`.
 2. Present the current mapping in a clear table.
 3. Prompt the user: "Which role would you like to update? (1) Supervisor, (2) Scout, (3) Implementer, (4) Tester, (5) Reviewer, (6) Parallelism limits, (7) Runtime capability overrides / re-probe".
-4. Update `.agents/orchy.config.json` and refresh the section in `AGENTS.md`.
+4. Update `.agents/orchy.config.json` and refresh only the `<!-- orchy:start -->` … `<!-- orchy:end -->` block in `AGENTS.md` (same non-destructive rules as init Step 3).
 
 ---
 
@@ -148,7 +150,7 @@ Treat a `.agents/orchy.config.json` that fails to parse the same as absent. If `
 > Whenever orchestration is engaged, the agent **MUST prepend an alert banner at the very top of its initial response**:
 > ```markdown
 > > [!NOTE]
-> > 🚀 **Orchestration Active** (mode: `full`): Multi-agent delegation engaged. Sub-tasks assigned to tiered models per `AGENTS.md`.
+> > 🚀 **Orchy Active** (mode: `full`): Multi-agent delegation engaged. Sub-tasks assigned to tiered models per `AGENTS.md`.
 > ```
 > The banner names the detected runtime mode. In `context-only` mode it must also state "no cost savings expected".
 > This provides immediate visual transparency so the user always knows whether subagents are running and under which guarantees.
@@ -181,14 +183,14 @@ Complex tasks are decomposed into the phases below:
 3. **Logical dependencies**: build a dependency order before dispatch. If unit B consumes an interface, type, or signature that unit A changes, then either B runs after A, or the new contract is written into both prompts verbatim (an **interface freeze**) so both sides implement against the same definition. Only units with no unresolved edges run in the same wave.
 4. **Git is single-writer**: all workers share one working tree and one index. Workers never run `git add`, `git commit`, `git push`, or `gh`. The Supervisor performs these after the wave is verified.
 
-### Phase 3: Subagent Dispatch (`invoke_subagent` or runtime equivalent)
+### Phase 3: Subagent Dispatch (runtime spawn primitive)
 
 Before dispatching a wave:
 1. **Checkpoint**: require a clean working tree, or record HEAD / `git stash` so a failed wave can be reverted as a unit.
 2. **Concurrency**: respect `dispatchPolicy.maxConcurrentSubagents`, and lower it if the provider rate-limits; four throttled workers are slower than two that are not.
 3. **Handover Context**: workers start with an empty context and must **not** be given a copy of the Supervisor's. Build one need-to-know packet per worker (format in `references/dispatch-guidelines.md` Section 4.2): objective for this unit only, scope (may modify / may read / must not touch), Known Facts resolved by the Scout, frozen interfaces verbatim, short verbatim excerpts of the code it will certainly open, constraints, the exact verification command, and the instruction to reply with a Handover Result. Discovery is done once and its relevant slice fanned out; no worker should re-grep for something the Supervisor or Scout already located. Leave out the user conversation, other units' scopes, ticket contents, and previous waves.
 
-Use the configured model tiers where the runtime supports them. Each `Prompt` is a Handover Context:
+Use the configured model tiers where the runtime supports them. Each worker's prompt is a Handover Context. The example below uses one runtime's spawn shape (a JSON list of subagents with a `Model` field); in other runtimes the same packet goes into that runtime's spawn call as the prompt, and the model tier is applied only if the call accepts one:
 
 ```json
 {
@@ -227,7 +229,7 @@ The Supervisor consumes only the worker's **Handover Result** (format in `refere
 If a subagent's work fails verification or produces errors:
 1. Do not rewrite the code directly in the Supervisor's context.
 2. Send targeted feedback to the worker:
-   * In `full` mode, use `send_message` to the existing subagent with the exact test failure or lint error and the specific file/line to fix.
+   * In `full` mode, message the existing subagent with the exact test failure or lint error and the specific file/line to fix.
    * Without live messaging, respawn a fresh worker with the **same Handover Context** plus a `Prior Attempt` section containing the previous Handover Result and the exact error. Reusing the packet means the retry costs the packet again, not a fresh discovery; still cap it at one retry.
 3. If the worker fails twice on the same step, stop dispatching for that unit and ask the human user for guidance. Re-decompose only if the user agrees.
 4. **Partial wave failure**: if some units of a wave succeed and one fails, do not commit the successful subset unless it is independently coherent (builds, tests pass, no dangling references to the failed unit). Otherwise revert to the Phase 3 checkpoint and re-plan.
@@ -287,7 +289,7 @@ Ideal for collaborative teams and open-source projects. All `gh` and `git` comma
 
 Model names below are illustrative classes, not a list to trust verbatim; use whatever the runtime actually exposes at init time.
 
-| Role | Antigravity Tier | Equivalent Class Elsewhere | Token Cost Ratio (indicative) | Best Used For |
+| Role | Config Tier Key | Model Class | Token Cost Ratio (indicative) | Best Used For |
 | :--- | :--- | :--- | :--- | :--- |
 | **Supervisor / Architect** | `inherit` or `pro` | Opus / Pro / frontier-class | 1.0x (Baseline) | System design, user consultation, dependency analysis, diff reviews, independent verification |
 | **Implementer / Coder** | `flash` | Sonnet / mid-tier coding class | ~0.15x - 0.25x | Scoped feature implementation, targeted refactors, boilerplate |
@@ -323,7 +325,7 @@ After every orchestrated task (and every solo task when `metrics.recordSoloBasel
 ```
 
 Rules for populating `usage`:
-* Prefer token counts the runtime reports (per-subagent usage, `manage_subagents` stats, or the equivalent). Set `source` to `runtime_usage_api`.
+* Prefer token counts the runtime reports (per-subagent usage stats or the equivalent). Set `source` to `runtime_usage_api`.
 * If the runtime exposes nothing, estimate as `ceil(characters / 4)` over each prompt sent and each result received, and set `source` to `estimated`. Never present an estimate as measured.
 * If a role was never dispatched, omit it rather than writing zeros.
 * Record the solo baseline the same way, with `orchestrated: false` and a single `supervisor` entry.

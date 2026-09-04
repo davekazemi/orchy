@@ -1,5 +1,5 @@
 <!-- orchy:start -->
-# Cost-Optimized Agent Orchestration Matrix
+# Orchy: Cost-Optimized Agent Orchestration Matrix
 
 > Managed by `orchy`. Designed to minimize token costs and preserve the Supervisor's context window.
 
@@ -33,7 +33,7 @@ No subagent runs `git add`/`commit`/`push`, calls `gh`, or edits `.agents/TICKET
 3. **Mandatory Transparency Banner**: Whenever orchestration activates, prepend this notice at the very top of your initial response:
    ```markdown
    > [!NOTE]
-   > 🚀 **Orchestration Active** (mode: `{{RUNTIME_MODE}}`): Delegating sub-tasks across tiered subagents (Implementer: `{{IMPLEMENTER_MODEL}}`, Tester: `{{TESTER_MODEL}}`, Scout: `{{SCOUT_MODEL}}`).
+   > 🚀 **Orchy Active** (mode: `{{RUNTIME_MODE}}`): Delegating sub-tasks across tiered subagents (Implementer: `{{IMPLEMENTER_MODEL}}`, Tester: `{{TESTER_MODEL}}`, Scout: `{{SCOUT_MODEL}}`).
    ```
    In `context-only` mode the banner must also state "no cost savings expected".
 4. **Metrics Ledger**: After every orchestrated task, append one JSON line to `.agents/orchy-metrics.jsonl` with mode, wall time, per-role token usage, retries, verification result, and whether counts were runtime-reported or estimated. Never present an estimate as a measurement.
@@ -54,7 +54,7 @@ No subagent runs `git add`/`commit`/`push`, calls `gh`, or edits `.agents/TICKET
    - Proposed discoveries (out-of-scope issues) for the Supervisor to record
 7. **Independent Verification**: A subagent's self-report is a claim. Before committing or closing a ticket, the Supervisor re-runs the verification command itself (or via a fresh Tester that has not seen the claim). Only the independent result is recorded.
 8. **Loopback & Iteration**: When verification fails:
-   - With live messaging (`full` mode): send targeted feedback via `send_message` with the exact error.
+   - With live messaging (`full` mode): send targeted feedback to the running subagent with the exact error.
    - Without live messaging: respawn a fresh worker with the same Handover Context plus a Prior Attempt section (previous Handover Result and exact error); allow one such retry.
    - If a subagent fails verification twice on the same step, halt and escalate to the human user.
 9. **Partial Wave Failure**: Commit a partially successful wave only if the successful subset is independently coherent; otherwise revert to the checkpoint and re-plan.

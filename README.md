@@ -1,4 +1,7 @@
-# orchy
+<p align="center">
+  <img src="assets/Orchy.png" alt="Orchy" width="293" />
+</p>
+
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Install](https://img.shields.io/badge/install-npx%20skills%20add-black.svg)](#-installation)
@@ -18,7 +21,7 @@ It equips any agent that reads `SKILL.md` / `AGENTS.md` (Claude Code, Cursor, Co
 
 ---
 
-## 🚀 Why Agent Orchestrator?
+## 🚀 Why Orchy?
 
 In modern AI-assisted engineering, running a top-tier reasoning model (Pro / Opus-class) for every single sub-task has two fatal drawbacks:
 
@@ -29,7 +32,7 @@ In modern AI-assisted engineering, running a top-tier reasoning model (Pro / Opu
 
 <p align="center">
   <a href="assets/architecture.html">
-    <img src="assets/architecture.svg" alt="Agent Orchestration Architecture Diagram" width="100%" />
+    <img src="assets/architecture.svg" alt="Orchy Architecture Diagram" width="100%" />
   </a>
 </p>
 
@@ -45,11 +48,11 @@ Workers never commit, push, call `gh`, or edit the ticket board. The Supervisor 
 
 - ⚙️ **Interactive Onboarding (`orchy init`)**: Prompts the user to configure model tiers for the Supervisor and subagent roles, then persists the matrix into `AGENTS.md` and configuration files.
 - 🔄 **Dynamic Reconfiguration (`orchy update`)**: Easily change assigned models, roles, or concurrency settings at any time.
-- 🧭 **Runtime Capability Detection**: Probes for subagent spawning, per-subagent model selection, and live messaging, then selects a mode (`full`, `tiered-sync`, `context-only`, `solo`) instead of assuming Antigravity tool names exist everywhere.
+- 🧭 **Runtime Capability Detection**: Probes for subagent spawning, per-subagent model selection, and live messaging, then selects a mode (`full`, `tiered-sync`, `context-only`, `solo`) instead of assuming any particular runtime's tool names exist.
 - ⚡ **Safe Parallel Dispatch**: Enforces the **Disjoint File Invariant** plus **dependency ordering** and **hotspot-file serialization**—units that share an interface or a manifest file never run in the same wave unverified.
 - 📦 **Two-Way Handover Protocol**: Each worker receives a need-to-know **Handover Context** (objective, scope, resolved facts, frozen interfaces, excerpts, verification command) instead of a copy of the Supervisor's context, and replies with a structured **Handover Result** (status, files touched, diff summary, raw verification tail, interface notes). Discovery is paid once, not once per worker, and the Supervisor never ingests raw dumps.
 - ✅ **Independent Verification**: A subagent's `SUCCESS` is treated as a claim. The Supervisor re-runs verification before committing or closing a ticket.
-- 🔁 **Targeted Feedback Loops**: When a subagent encounters a test failure, the Supervisor sends corrective instructions via `send_message` (or respawns with the error embedded where live messaging is unavailable) rather than rewriting the code itself.
+- 🔁 **Targeted Feedback Loops**: When a subagent encounters a test failure, the Supervisor sends corrective instructions to the running worker (or respawns it with the same Handover Context plus the error where live messaging is unavailable) rather than rewriting the code itself.
 - 🎫 **Single-Writer Dual-Mode Ticketing**: Choose between **Local Markdown** (`.agents/TICKETS.md` for offline, zero-network self-containment) or **GitHub Issues** (via `gh` CLI). Subagents propose discoveries; only the Supervisor writes the board, commits, and closes tickets.
 
 ---
@@ -58,17 +61,18 @@ Workers never commit, push, call `gh`, or edit the ticket board. The Supervisor 
 
 ```
 orchy/
-├── SKILL.md                          # The core skill definition (Antigravity-first, portable)
+├── SKILL.md                          # The core skill definition (platform-neutral)
 ├── README.md                         # Project documentation
 ├── LICENSE                           # MIT License
 ├── .gitignore                        # Git ignore rules
 ├── assets/
+│   ├── Orchy.png                     # Logo
 │   ├── architecture.svg              # Standalone showcase SVG diagram generated with Archify
 │   ├── architecture.html             # Explorable interactive Archify viewer
 │   └── architecture.workflow.json    # Archify diagram specification
 ├── templates/
 │   ├── AGENTS.md.template            # Injectable orchestration rules for target repos
-│   ├── orchy.config.json     # Default role-to-model matrix, runtime mode, dispatch policy
+│   ├── orchy.config.json             # Default role-to-model matrix, runtime mode, dispatch policy, metrics
 │   └── TICKETS.md.template           # Scaffold template for local Markdown task board
 └── references/
     ├── dispatch-guidelines.md        # Parallel safety, dependency ordering, handover protocol, verification, runtime fallbacks, economics
@@ -98,7 +102,7 @@ git clone https://github.com/davekazemi/orchy.git .agents/skills/orchy
 ```
 </details>
 
-After installation run `orchy init` once per project. It writes the orchestration block into that project's `AGENTS.md`, which most runtimes read even if they do not load `SKILL.md` directly. If you skip this step, the first `orchy:` request will run init for you (see [First-run safeguard](#first-run-safeguard)).
+After installation run `orchy init` once per project. It **appends** an Orchy block (delimited by `<!-- orchy:start -->` / `<!-- orchy:end -->`) to that project's `AGENTS.md`, creating the file only if it does not exist. Existing `AGENTS.md` content is never overwritten; `orchy init` and `orchy update` only ever rewrite the text between those two markers. Most runtimes read `AGENTS.md` even if they do not load `SKILL.md` directly. If you skip this step, the first `orchy:` request will run init for you (see [First-run safeguard](#first-run-safeguard)).
 
 ---
 
@@ -115,7 +119,7 @@ After installation run `orchy init` once per project. It writes the orchestratio
 | `orchy status` | Show active subagents, detected runtime mode, and a cost-weighted summary of the metrics ledger |
 | `orchy cancel` | Terminate in-flight subagents and return to manual control |
 
-Commands are plain chat messages starting with `orch` (no slash), so they work in every runtime, including ones without slash-command support. `orchy:` with a colon runs a task; `orchy <verb>` is a command.
+Commands are plain chat messages starting with `orchy` (no slash), so they work in every runtime, including ones without slash-command support. `orchy:` with a colon runs a task; `orchy <verb>` is a command.
 
 ### 1. Initialize Orchestration in a Project
 ```text
@@ -154,7 +158,7 @@ orchy off   # back to requiring the orchy: prefix
 ```
 
 #### First-run safeguard
-`orchy:` and `orchy on` never dispatch subagents into an unconfigured workspace. If `.agents/orchy.config.json` is missing and `AGENTS.md` has no `agent-orchestration` block, the agent stops, tells you the project is not initialized, runs the `orchy init` flow (capability probe, model menu, ticketing choice), and only then continues with your original task. Decline the init prompt and the task runs solo instead. This prevents a cold `orchy:` from guessing model tiers or dispatching in a runtime that cannot spawn subagents.
+`orchy:` and `orchy on` never dispatch subagents into an unconfigured workspace. If `.agents/orchy.config.json` is missing and `AGENTS.md` has no `<!-- orchy:start -->` block, the agent stops, tells you the project is not initialized, runs the `orchy init` flow (capability probe, model menu, ticketing choice), and only then continues with your original task. Decline the init prompt and the task runs solo instead. This prevents a cold `orchy:` from guessing model tiers or dispatching in a runtime that cannot spawn subagents.
 
 #### Complexity Threshold
 Even when triggered, orchestration engages only if the task spans **3+ files across 2+ modules**, needs **~10+ file reads** before a plan can be formed, or has **2+ genuinely independent units**. Smaller tasks run solo because dispatch overhead would exceed the savings. In `context-only` mode the thresholds double.
@@ -164,7 +168,7 @@ Whenever orchestration engages, the agent displays a notice at the very top of i
 
 ```markdown
 > [!NOTE]
-> 🚀 **Orchestration Active** (mode: `full`): Delegating sub-tasks across tiered subagents (Implementer: `flash`, Tester: `flash_lite`, Scout: `flash_lite`).
+> 🚀 **Orchy Active** (mode: `full`): Delegating sub-tasks across tiered subagents (Implementer: `flash`, Tester: `flash_lite`, Scout: `flash_lite`).
 ```
 
 In `context-only` mode the banner also states that no cost savings are expected.
@@ -182,7 +186,7 @@ In `context-only` mode the banner also states that no cost savings are expected.
 
 ## 🧩 Runtime Compatibility
 
-The dispatch mechanics are written against Antigravity primitives (`invoke_subagent`, `send_message`, `manage_subagents`). Other runtimes usually lack live messaging and sometimes lack per-subagent model selection. The skill probes for these at init, records the result in `orchy.config.json`, and degrades explicitly:
+The skill is written against four generic capabilities: **spawn** a subagent, choose a **model per subagent**, **message** a running subagent, and **terminate** it. Each runtime exposes some subset under its own names (Claude Code `Task`, Augment `sub-agent-*`, Antigravity `invoke_subagent` / `send_message`, Cursor background agents, and so on); most lack live messaging and some lack per-subagent model selection. The skill probes for these at init, records the result in `orchy.config.json`, and degrades explicitly:
 
 | Mode | What the runtime offers | Effect |
 | :--- | :--- | :--- |
@@ -197,14 +201,14 @@ If the probe gets it wrong, override individual capabilities with `orchy update`
 
 ## 📊 Economics & Token Savings
 
-| Role | Standard Single-Agent | Agent-Orchestrator Tier | Per-Token Cost Ratio (indicative) |
+| Role | Standard Single-Agent | Orchy Tier | Per-Token Cost Ratio (indicative) |
 | :--- | :--- | :--- | :--- |
 | **Exploration / Grep** | `pro` | `flash_lite` | **~0.05x - 0.10x** |
 | **Implementation** | `pro` | `flash` | **~0.15x - 0.25x** |
 | **Unit Testing / Lint**| `pro` | `flash_lite` | **~0.05x - 0.15x** |
 | **Supervisor Oversight**| `pro` | `pro` | Clean context, minimal tokens |
 
-These are per-token list-price ratios, not end-to-end savings. Each worker starts cold and re-reads context, cheaper models retry more often, and decomposition, dependency analysis, and independent verification all run on the Supervisor. Savings are real on large, genuinely parallel tasks and can be zero or negative on small or tightly coupled ones, which is why orchestration is opt-in and gated by a complexity threshold.
+These are per-token list-price ratios, not end-to-end savings. Each worker starts cold (the Handover Context bounds that cost but does not remove it), cheaper models retry more often, and decomposition, dependency analysis, and independent verification all run on the Supervisor. Savings are real on large, genuinely parallel tasks and can be zero or negative on small or tightly coupled ones, which is why orchestration is opt-in and gated by a complexity threshold.
 
 ### Verifying the savings yourself
 
