@@ -17,16 +17,17 @@
 
 A specialized skill and framework for **cost-optimized, hierarchical multi-agent orchestration**.
 
-It equips any agent that reads `SKILL.md` / `AGENTS.md` (Claude Code, Cursor, Codex, Copilot, Windsurf, Gemini CLI, Antigravity, Cline, and others) to function as an **Architect / Supervisor** that manages context windows and delegates token-heavy exploration, coding, testing, and reviewing tasks to fast, economical subagent tiers (`flash` and `flash_lite`). The skill is a prompt document (`SKILL.md` plus templates), not a runtime: it changes how the agent behaves, using whatever subagent primitives the host actually exposes.
+It equips any agent that reads `SKILL.md` / `AGENTS.md` (Claude Code, Cursor, Codex, Copilot, Windsurf, Gemini CLI, Antigravity, Cline, and others) to act as a **Supervisor** that keeps its own context small and delegates token-heavy exploration, coding, and review to short-lived subagents, on cheaper model tiers where the runtime allows it. Orchy is mostly a prompt document (a 57-line `SKILL.md` plus references loaded per phase), backed by two small scripts that enforce the parts prose cannot: file-scope checking via `git diff`, and non-destructive `AGENTS.md` updates.
 
 ---
 
 ## 🚀 Why Orchy?
 
-In modern AI-assisted engineering, running a top-tier reasoning model (Pro / Opus-class) for every single sub-task has two fatal drawbacks:
+A single agent session pays for its context on every turn. Once grep output, file dumps, and test logs have entered the conversation, they are re-sent as input tokens on each subsequent turn until the session ends, and they crowd out the material the model should be attending to:
 
-1. **Massive Token Inefficiency**: Most tokens in a coding session go to repetitive codebase grepping, reading large files, running test commands, and formatting code, none of which needs frontier-level reasoning.
-2. **Context Window Degradation**: As intermediate tool calls and test outputs accumulate, the model's context window dilutes, increasing latency and hallucination rates.
+1. **Context re-send cost**: a Supervisor that has absorbed 60k tokens of exploration pays for those 60k on every later turn. Delegating the exploration to a worker that returns a few hundred tokens keeps the per-turn bill flat.
+2. **Context degradation**: as intermediate output accumulates, attention drifts and error rates rise.
+3. **Cheaper tokens** (where the runtime supports per-subagent models): routine reading and drafting does not need a frontier model.
 
 ### The Solution: Hierarchical Tiering with Supervisor-Owned Verification
 
@@ -40,20 +41,22 @@ In modern AI-assisted engineering, running a top-tier reasoning model (Pro / Opu
   <em>Generated with <a href="https://github.com/tt-a1i/archify">Archify</a>. Click the image or <a href="assets/architecture.html">open the interactive diagram</a> for animated trace flow, guided view chapters, and component inspection.</em>
 </p>
 
-Workers never commit, push, call `gh`, or edit the ticket board. The Supervisor is the single writer for shared state and closes nothing on a worker's self-report alone.
+Workers never commit, push, call `gh`, or edit the ticket board. The Supervisor is the single writer for shared state, checks every worker's file scope with `git diff` against a checkpoint, and closes nothing on a worker's self-report alone.
 
 ---
 
 ## ✨ Features
 
-- ⚙️ **Interactive Onboarding (`orchy init`)**: Prompts the user to configure model tiers for the Supervisor and subagent roles, then persists the matrix into `AGENTS.md` and configuration files.
-- 🔄 **Dynamic Reconfiguration (`orchy update`)**: Easily change assigned models, roles, or concurrency settings at any time.
-- 🧭 **Runtime Capability Detection**: Probes for subagent spawning, per-subagent model selection, and live messaging, then selects a mode (`full`, `tiered-sync`, `context-only`, `solo`) instead of assuming any particular runtime's tool names exist.
-- ⚡ **Safe Parallel Dispatch**: Enforces the **Disjoint File Invariant** plus **dependency ordering** and **hotspot-file serialization**—units that share an interface or a manifest file never run in the same wave unverified.
-- 📦 **Two-Way Handover Protocol**: Each worker receives a need-to-know **Handover Context** (objective, scope, resolved facts, frozen interfaces, excerpts, verification command) instead of a copy of the Supervisor's context, and replies with a structured **Handover Result** (status, files touched, diff summary, raw verification tail, interface notes). Discovery is paid once, not once per worker, and the Supervisor never ingests raw dumps.
-- ✅ **Independent Verification**: A subagent's `SUCCESS` is treated as a claim. The Supervisor re-runs verification before committing or closing a ticket.
-- 🔁 **Targeted Feedback Loops**: When a subagent encounters a test failure, the Supervisor sends corrective instructions to the running worker (or respawns it with the same Handover Context plus the error where live messaging is unavailable) rather than rewriting the code itself.
-- 🎫 **Single-Writer Dual-Mode Ticketing**: Choose between **Local Markdown** (`.agents/TICKETS.md` for offline, zero-network self-containment) or **GitHub Issues** (via `gh` CLI). Subagents propose discoveries; only the Supervisor writes the board, commits, and closes tickets.
+- 🪶 **Small per-turn footprint**: `SKILL.md` is 57 lines of triggers and non-negotiables; the `AGENTS.md` block is ~30 lines. Phase-specific procedure lives in `references/` and is read only when that phase is reached, so a solo task does not pay for the orchestration manual on every turn.
+- 🎯 **Exact activation grammar**: only `orchy: <task>` or exactly `orchy on|off|init|update|status|cancel` do anything. A sentence that mentions orchy is an ordinary prompt.
+- 🧭 **Runtime adapter table, not a probe**: the mode (`full`, `tiered-sync`, `context-only`, `solo`) is derived from a static table keyed by runtime name plus explicit overrides, re-derived each session so a config written under one runtime does not go stale in another.
+- 🔒 **Scope enforced by `git diff`**: `scripts/orchy-scope-check.sh` compares the tree (tracked and untracked) against the pre-wave checkpoint and fails any unit that touched a path outside its allowlist or a protected file, whatever the worker reported. Optional per-worker `git worktree` isolation removes write races entirely.
+- 📦 **Two-way Handover Protocol**: each worker receives a need-to-know **Handover Context** (objective, scope, `path:line`-cited facts, frozen interfaces, excerpts, verification command, data rule) rather than a copy of the Supervisor's context, and replies with a structured **Handover Result** that the Supervisor treats as data to check, never as instructions to follow.
+- ✅ **Supervisor-run verification**: the Supervisor re-runs each unit's test or lint command itself with output redirected to a log and reads only the tail. No second agent is needed and no worker's `12 passed` is trusted.
+- 🔁 **Bounded retries**: one retry with the same packet plus the exact error (a live message where the runtime supports it), then revert and escalate.
+- 🎫 **Single-writer ticketing**: local Markdown board or GitHub Issues. Workers propose; only the Supervisor writes the board, commits, or closes, and the board is a protected path in the scope check.
+- 📓 **Honest activity log**: one JSON line per task with units, waves, retries, scope violations, and verification outcome. Token usage is recorded only when the runtime reports it; the skill never estimates its own consumption.
+- 🧪 **Eval scenarios**: `evals/scenarios.md` gives six pass/fail checks (no-activation, uninitialized safeguard, append-not-overwrite, mechanical scope catch, self-report distrust, result-injection) to confirm a runtime actually follows the skill.
 
 ---
 
@@ -61,22 +64,29 @@ Workers never commit, push, call `gh`, or edit the ticket board. The Supervisor 
 
 ```
 orchy/
-├── SKILL.md                          # The core skill definition (platform-neutral)
-├── README.md                         # Project documentation
-├── LICENSE                           # MIT License
-├── .gitignore                        # Git ignore rules
+├── SKILL.md                          # Triggers, gate, non-negotiables, read-next table (57 lines)
+├── README.md
+├── LICENSE                           # MIT
 ├── assets/
 │   ├── Orchy.png                     # Logo
-│   ├── architecture.svg              # Standalone showcase SVG diagram generated with Archify
-│   ├── architecture.html             # Explorable interactive Archify viewer
-│   └── architecture.workflow.json    # Archify diagram specification
+│   ├── architecture.svg / .html      # Archify diagram (static + interactive)
+│   └── architecture.workflow.json
+├── references/                       # Loaded per phase, not per turn
+│   ├── runtime-adapters.md           # Static capability table per runtime, mode derivation, stale-config guard
+│   ├── init-and-update.md            # orchy init / update flows, AGENTS.md splice rules, uninitialized safeguard
+│   ├── orchestration-phases.md       # Threshold, banner, Phases 1-5: checkpoint, dispatch, scope check, verification, retry
+│   ├── dispatch-guidelines.md        # Economics, parallel safety, worktree isolation, Handover Context/Result, worked example
+│   ├── ticketing-workflow.md         # Single-writer board / GitHub Issues
+│   └── metrics.md                    # Activity log, orchy status, where savings come from, A/B protocol
+├── scripts/
+│   ├── orchy-scope-check.sh          # git-diff scope enforcement against a checkpoint (exit 0 / 2 / 1)
+│   └── orchy-agents-splice.py        # Create / append / replace only the orchy block in AGENTS.md; refuses malformed markers
 ├── templates/
-│   ├── AGENTS.md.template            # Injectable orchestration rules for target repos
-│   ├── orchy.config.json             # Default role-to-model matrix, runtime mode, dispatch policy, metrics
-│   └── TICKETS.md.template           # Scaffold template for local Markdown task board
-└── references/
-    ├── dispatch-guidelines.md        # Parallel safety, dependency ordering, handover protocol, verification, runtime fallbacks, economics
-    └── ticketing-workflow.md         # Single-writer ticketing for GitHub Issues & local Markdown
+│   ├── AGENTS.md.template            # ~30-line block spliced into a project's AGENTS.md
+│   ├── orchy.config.json             # Roles, activation grammar, runtime row + overrides, dispatch policy, log settings
+│   └── TICKETS.md.template
+└── evals/
+    └── scenarios.md                  # Six pass/fail scenarios for checking a runtime follows the skill
 ```
 
 ---
@@ -112,36 +122,31 @@ After installation run `orchy init` once per project. It **appends** an Orchy bl
 
 | Command | Description |
 | :--- | :--- |
-| `orchy: <task>` | Run one task with multi-agent orchestration |
+| `orchy: <task>` | Run one task with orchestration (subject to the complexity threshold) |
 | `orchy on` / `orchy off` | Enable or disable ambient orchestration for the workspace |
-| `orchy init` | Probe runtime capabilities, choose model tiers and ticketing mode, write config + `AGENTS.md` |
-| `orchy update` | Change role-to-model assignments, parallelism limits, or runtime capability overrides |
-| `orchy status` | Show active subagents, detected runtime mode, and a cost-weighted summary of the metrics ledger |
-| `orchy cancel` | Terminate in-flight subagents and return to manual control |
+| `orchy init` | Pick the runtime row, model tiers, tracking and isolation; write config and splice the `AGENTS.md` block |
+| `orchy update` | Change roles, concurrency/isolation, runtime row or overrides, tracking provider |
+| `orchy status` | Runtime row and derived mode, units in flight, activity-log summary |
+| `orchy cancel` | Stop dispatching, revert uncommitted wave changes to the checkpoint |
 
-Commands are plain chat messages starting with `orchy` (no slash), so they work in every runtime, including ones without slash-command support. `orchy:` with a colon runs a task; `orchy <verb>` is a command.
+Matching is exact: a command is a message that is exactly `orchy <verb>` (trimmed, case-insensitive); a trigger is a message starting with `orchy:` followed by whitespace. Anything else that contains the word is an ordinary prompt. No leading slash, so the commands work in every runtime.
 
 ### 1. Initialize Orchestration in a Project
 ```text
 orchy init
 ```
 The agent:
-1. **Probes the runtime** for subagent spawning, per-subagent model selection, and live messaging, and records a mode (`full`, `tiered-sync`, `context-only`, or `solo`). If the mode is `solo`, it stops and tells you orchestration is unavailable here.
-2. **Lists the models it can actually see**, presents them in a numbered menu, and suggests defaults matched to each role's capability profile:
-   - **Supervisor** (High Reasoning & Planning): top-tier class (Pro / Opus)
-   - **Codebase Scout** (High-throughput Read & Search): lightweight class (Flash-Lite / Haiku)
-   - **Implementer** (Precise Code Synthesis): balanced class (Flash / Sonnet)
-   - **Tester / QA** (CLI Exec & Log Parsing): lightweight class (Flash-Lite / Haiku)
-   - **Reviewer** (Spec & Standards Critique): balanced class (Flash / Sonnet)
-3. **Asks for a ticketing mode**: local Markdown (`.agents/TICKETS.md`, default) or GitHub Issues via `gh`.
+1. **Identifies the runtime** from the tools it can see and the files in the workspace, matches it to a row in `references/runtime-adapters.md`, shows you the row and the derived mode (`full`, `tiered-sync`, `context-only`, or `solo`), and asks you to confirm. Unknown cells become yes/no questions recorded as overrides; it never calls a tool to find out whether the tool exists.
+2. **Lists the models it can actually see** and suggests defaults by role: Supervisor top-tier or `inherit`; Scout cheapest; Implementer balanced; Reviewer balanced; Tester cheapest and **off by default** (the Supervisor verifies itself, see below).
+3. **Asks for tracking and isolation**: local Markdown board (default) or GitHub Issues; `shared-tree` (default) or per-worker `git worktree`; and whether to add `.orchy/` and the activity log to `.gitignore`.
 
-Press `y` to accept the recommendations or enter custom numbers per role. The result is persisted to `.agents/orchy.config.json` and injected into your project's `AGENTS.md`.
+Press `y` to accept the recommendations or enter custom numbers per role. The result is persisted to `.agents/orchy.config.json` and spliced into your project's `AGENTS.md` with `scripts/orchy-agents-splice.py` (or by hand under the same rules where Python is unavailable).
 
 ### 2. Update Configuration
 ```text
 orchy update
 ```
-Switch any role's model (e.g. promote the Implementer to `pro` for a hard refactor), change parallelism limits, or override the detected runtime capabilities.
+Switch any role's model (e.g. promote the Implementer to `pro` for a hard refactor), toggle the Tester, change concurrency or isolation, pick a different runtime row, or set capability overrides. Only the block between the markers in `AGENTS.md` is rewritten.
 
 ### 3. How Orchestration Runs (Opt-In by Default)
 
@@ -158,75 +163,74 @@ orchy off   # back to requiring the orchy: prefix
 ```
 
 #### First-run safeguard
-`orchy:` and `orchy on` never dispatch subagents into an unconfigured workspace. If `.agents/orchy.config.json` is missing and `AGENTS.md` has no `<!-- orchy:start -->` block, the agent stops, tells you the project is not initialized, runs the `orchy init` flow (capability probe, model menu, ticketing choice), and only then continues with your original task. Decline the init prompt and the task runs solo instead. This prevents a cold `orchy:` from guessing model tiers or dispatching in a runtime that cannot spawn subagents.
+`orchy:` and `orchy on` never dispatch subagents into an unconfigured workspace. If `.agents/orchy.config.json` is missing and `AGENTS.md` has no `<!-- orchy:start -->` … `<!-- orchy:end -->` block, the agent stops, tells you the project is not initialized, runs the `orchy init` flow, and only then continues with your original task. Decline the init prompt and the task runs solo instead. This prevents a cold `orchy:` from guessing model tiers or dispatching in a runtime that cannot spawn subagents.
+
+#### Stale-config guard
+The config remembers which runtime ran `orchy init`, but the mode is re-derived from the *current* environment at the first orchestrated action of every session. Open the same repo in a different runtime and Orchy says so and uses that runtime's row rather than dispatching on capabilities that are no longer there.
 
 #### Complexity Threshold
 Even when triggered, orchestration engages only if the task spans **3+ files across 2+ modules**, needs **~10+ file reads** before a plan can be formed, or has **2+ genuinely independent units**. Smaller tasks run solo because dispatch overhead would exceed the savings. In `context-only` mode the thresholds double.
 
 #### Mandatory Transparency Banner
-Whenever orchestration engages, the agent displays a notice at the very top of its initial response, including the detected runtime mode:
+Whenever orchestration engages, the first line of the first response is a banner naming the mode derived in this session and the runtime:
 
 ```markdown
-> [!NOTE]
-> 🚀 **Orchy Active** (mode: `full`): Delegating sub-tasks across tiered subagents (Implementer: `flash`, Tester: `flash_lite`, Scout: `flash_lite`).
+> 🚀 **Orchy Active** (mode: `tiered-sync`, runtime: `claude-code`): 3 units in 2 waves; workers on `flash` / `flash_lite`.
 ```
 
-In `context-only` mode the banner also states that no cost savings are expected.
+In `context-only` mode the banner adds "isolation only, no per-token savings".
 
 #### What Happens During an Orchestrated Task
-1. **Decompose** the objective into units, each with a role, a bounded file scope, and a deliverable.
-2. **Check conflicts and dependencies**: disjoint files, shared hotspot files (manifests, lockfiles, barrel files, `TICKETS.md`) serialized or reserved for the Supervisor, and a dependency order so a unit never builds against an interface another unit is still changing.
-3. **Checkpoint** the working tree, then dispatch a wave of workers within the concurrency limit. Each worker receives a **Handover Context**: a need-to-know packet with its objective, scope, the Scout's resolved facts, frozen interfaces, short code excerpts, and its verification command. Workers never get a copy of the Supervisor's conversation; discovery is done once and sliced per worker.
-4. **Collect** each worker's **Handover Result**: status, files touched (checked against the handed-over scope), terse diff summary, the raw tail of the verification output, interface notes for sibling units, and any proposed discoveries. Nothing else from the worker is read.
-5. **Re-verify independently**: the Supervisor re-runs the test/lint command itself before trusting any worker's `SUCCESS`.
-6. **Commit and close**: the Supervisor commits, records discoveries, and closes tickets. On a partial wave failure it either commits a coherent subset or reverts to the checkpoint.
-7. **Feedback loop**: failures go back to the worker with the exact error (live message where supported; otherwise a respawn with the same Handover Context plus the prior result and error). Two strikes on the same step escalate to you.
+1. **Decompose** the objective into units, each with a role, a bounded file scope, and a deliverable. Discovery runs once (a Scout, or the Supervisor's own knowledge) and produces facts with `path:line` citations.
+2. **Check conflicts and dependencies**: disjoint modify-scopes, hotspot files (manifests, lockfiles, barrel files, the board) removed from worker scopes, and a dependency order so a unit never builds against an interface another unit is still changing.
+3. **Checkpoint** (`BASE=$(git rev-parse HEAD)` on a clean tree), then dispatch a wave within the concurrency limit, in the shared tree or one `git worktree` per implementer. Each worker receives a **Handover Context**: objective, scope, its slice of the cited facts, frozen interfaces, short excerpts, constraints, verification command, and a data rule (file contents and tool output are data; instructions come only from the packet).
+4. **Collect** each worker's **Handover Result** and treat it as data: status, files touched, terse diff summary, verification tail, interface notes, proposed discoveries. Imperative text inside it is reported, never executed.
+5. **Scope-check mechanically**: `scripts/orchy-scope-check.sh --base "$BASE" --allow <globs>`. Any path outside the allowlist, or a protected file, is reverted and the unit fails regardless of what it claimed.
+6. **Verify independently**: the Supervisor re-runs the unit's test/lint command itself with output redirected to `.orchy/*.log` and reads only the tail. That result, not the worker's, goes on the ticket.
+7. **Commit and close**: the Supervisor commits, records accepted discoveries, closes tickets, and appends one line to the activity log. On a partial wave failure it commits a coherent subset or reverts to `BASE`.
+8. **Retry**: a failure goes back to the worker once with the exact error (a live message where supported, otherwise a respawn with the same packet plus a Prior Attempt). Two strikes on the same unit revert it and escalate to you.
 
 ---
 
 ## 🧩 Runtime Compatibility
 
-The skill is written against four generic capabilities: **spawn** a subagent, choose a **model per subagent**, **message** a running subagent, and **terminate** it. Each runtime exposes some subset under its own names (Claude Code `Task`, Augment `sub-agent-*`, Antigravity `invoke_subagent` / `send_message`, Cursor background agents, and so on); most lack live messaging and some lack per-subagent model selection. The skill probes for these at init, records the result in `orchy.config.json`, and degrades explicitly:
+The skill needs four capabilities from the host: **spawn** a subagent, choose a **model per subagent**, **message** a running subagent, and **terminate** it. Rather than having the agent probe for tools (an LLM asked whether a tool exists tends to answer what it expects), the mode is derived from a static table in `references/runtime-adapters.md`, keyed by runtime name, with per-capability overrides you confirm at init. Cells the table cannot vouch for are marked *verify* and default to "no".
 
-| Mode | What the runtime offers | Effect |
-| :--- | :--- | :--- |
-| `full` | spawn + per-role models + live messaging | Everything works as documented |
-| `tiered-sync` | spawn + per-role models | Feedback via respawn-with-context, one retry |
-| `context-only` | spawn only | Context isolation only; no cost savings, large tasks only |
-| `solo` | no spawn primitive | Orchestration disabled with a notice |
+| Runtime | Spawn | Model per subagent | Live messaging | Derived mode |
+| :--- | :---: | :---: | :---: | :--- |
+| Antigravity | yes | yes | yes | `full` |
+| Claude Code | yes (`Task`) | yes (`model:` in `.claude/agents/*.md`) | no | `tiered-sync` |
+| Augment | yes (`sub-agent-*`) | fixed per definition (*verify*) | no | `context-only` |
+| Cursor | *verify* | *verify* | no | `context-only` or `solo` |
+| Codex, Copilot, Gemini CLI | *verify* | no | no | `solo` unless confirmed |
+| Windsurf, Cline, unknown | no | no | no | `solo` |
 
-If the probe gets it wrong, override individual capabilities with `orchy update` (option 7).
+| Mode | Effect |
+| :--- | :--- |
+| `full` | Everything as documented |
+| `tiered-sync` | Feedback via respawn with the same packet, one retry |
+| `context-only` | Isolation savings only; tiers are documentation; threshold doubled |
+| `solo` | Orchestration disabled with a one-line notice |
+
+The per-agent badges above are a compatibility claim for reading `SKILL.md` / `AGENTS.md`, not a promise of `full` mode. If a row is wrong for your version, override it with `orchy update` (option 7) and open an issue.
 
 ---
 
 ## 📊 Economics & Token Savings
 
-| Role | Standard Single-Agent | Orchy Tier | Per-Token Cost Ratio (indicative) |
-| :--- | :--- | :--- | :--- |
-| **Exploration / Grep** | `pro` | `flash_lite` | **~0.05x - 0.10x** |
-| **Implementation** | `pro` | `flash` | **~0.15x - 0.25x** |
-| **Unit Testing / Lint**| `pro` | `flash_lite` | **~0.05x - 0.15x** |
-| **Supervisor Oversight**| `pro` | `pro` | Clean context, minimal tokens |
+Where the savings come from, largest first:
 
-These are per-token list-price ratios, not end-to-end savings. Each worker starts cold (the Handover Context bounds that cost but does not remove it), cheaper models retry more often, and decomposition, dependency analysis, and independent verification all run on the Supervisor. Savings are real on large, genuinely parallel tasks and can be zero or negative on small or tightly coupled ones, which is why orchestration is opt-in and gated by a complexity threshold.
+1. **Context isolation.** Every turn re-sends the Supervisor's whole context. Exploration output that a worker absorbs, and returns as a few hundred tokens, is never paid for again on later turns. This applies in every mode that can spawn, including `context-only`.
+2. **Prompt-cache stability.** The Supervisor's prefix stays unchanged across turns because worker churn never enters it, so it stays cached at the provider's reduced rate.
+3. **Cheaper models per token** (`full` / `tiered-sync` only). Real, but smaller than list-price ratios suggest: cheaper models retry more, and retries cost Supervisor turns.
+
+Against these: writing Handover Contexts, decomposition and dependency analysis, independent verification, and retries. Savings are positive on large, parallel, exploration-heavy tasks and zero or negative on small or tightly coupled ones, which is why orchestration is opt-in and gated by a complexity threshold.
 
 ### Verifying the savings yourself
 
-The ratios above are a hypothesis, not a measurement. The skill gives you two ways to check them against your own workload.
+Orchy does not estimate its own token consumption. A skill whose purpose is to reduce tokens is not a neutral judge of how many it used, so the activity log (`.agents/orchy-metrics.jsonl`) records only what the Supervisor observed (units, waves, retries, scope violations, verification outcome, wall time) and copies token figures only when the runtime itself reports them. `orchy status` cost-weights only those entries and says how many qualify.
 
-**1. Per-task ledger (`.agents/orchy-metrics.jsonl`)**
-After every orchestrated task the Supervisor appends one JSON line: task summary, runtime mode, wall time, per-role token counts (input/output per model), retries, whether independent verification passed, and a `source` field that says whether the counts came from the runtime's usage API or were estimated (`chars/4`) because the runtime exposes none. `orchy status` summarizes this ledger: total tokens by model, share of work on economical tiers, cost-weighted total, retry rate. Enable `metrics.recordSoloBaseline` in the config to log ordinary solo tasks too, so the two populations sit side by side.
-
-**2. A/B against the billing dashboard (ground truth)**
-Self-reported counts can be wrong, so the number that matters is what your provider bills. The protocol:
-
-1. Pick a task that clears the complexity threshold and can be re-run from the same commit (a branch off `main`, tests included).
-2. Note the provider usage/billing figure, run the task solo (no `orchy:`), note the figure again, and record the delta plus wall time and whether tests pass.
-3. Reset the branch to the same commit, repeat with `orchy:`.
-4. Compare **cost**, not raw tokens. Orchestration usually uses *more* total tokens (cold starts, retries) and fewer *expensive* tokens; the savings only show up once each model's tokens are weighted by its price. Put your prices in `metrics.pricing` so `orchy status` weights them the same way.
-5. Repeat on two or three tasks of different shapes. One sample says nothing; a tightly coupled task will likely show a loss and a wide, parallel one a gain. That is the expected result and the reason the complexity threshold exists.
-
-If the ledger and the dashboard disagree by more than roughly 20%, trust the dashboard and treat the runtime's usage reporting as unreliable for that mode.
+The number that matters is what your provider bills. The A/B protocol is in `references/metrics.md` §4: same task from the same commit, once solo and once with `orchy:`, compared on the billing dashboard by **cost**, not token count, over at least three runs per arm. Orchestration usually spends more total tokens and fewer expensive ones, so raw counts invert the result.
 
 ---
 

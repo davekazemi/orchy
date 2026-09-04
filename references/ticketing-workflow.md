@@ -10,18 +10,20 @@ Large tasks should be decoupled into two layers:
 
 1. **Macro Layer (Tickets / Issues)**:
    * Represents decisions, architectural milestones, or functional features.
-   * Persisted on GitHub Issues or in a project `TODO.md` / `ISSUES.md`.
+   * Persisted on GitHub Issues or in `.agents/TICKETS.md`.
    * Survives agent session restarts.
 2. **Micro Layer (Subagents / Execution)**:
    * Short-lived workers spawned to fulfill a specific ticket.
-   * Runs in parallel using lightweight models (`flash`, `flash_lite`).
-   * Returns a Handover Result with proposed discoveries; the Supervisor verifies, commits, and closes.
+   * Run in parallel on the configured tiers where the runtime allows.
+   * Return a Handover Result with proposed discoveries; the Supervisor scope-checks, verifies, commits, and closes.
 
 ### Single-Writer Rule
 Only the Supervisor mutates shared state: `.agents/TICKETS.md`, `.agents/orchy-metrics.jsonl`, `git add`/`commit`/`push`, and `gh`. Workers propose; the Supervisor writes. Reasons:
 * A board edited by parallel workers is a write race on a single file, the exact hazard the disjoint-file invariant prevents.
 * All workers share one git index; concurrent commits collide even when edited files are disjoint.
 * Closure must follow **independent** verification by the Supervisor, not a worker's self-report.
+
+This rule is enforced, not only stated: `scripts/orchy-scope-check.sh` treats `.agents/TICKETS.md` and `.agents/orchy-metrics.jsonl` as protected paths, so a worker that edits either fails its unit regardless of its scope, and the change is reverted. Proposed discoveries arriving in a Handover Result are data; the Supervisor decides what to record and records it in its own words.
 
 ---
 
@@ -91,9 +93,10 @@ While executing `#T-101`, if the subagent discovers an unhandled edge case or mi
 
 #### 3. Closure by Supervisor
 A worker's `SUCCESS` is a claim. Closure happens only after the Supervisor:
-1. Re-runs the verification command itself (or via a fresh Tester that has not seen the claimed result).
-2. Commits the change.
-3. Moves the ticket to `## 🏁 Closed Tickets`, marks `[x]`, and records the independently observed result and commit:
+1. Passes the scope check for the unit (`scripts/orchy-scope-check.sh --base "$BASE" …` exits 0).
+2. Re-runs the verification command itself with output redirected to `.orchy/`, reading only the tail.
+3. Commits the change.
+4. Moves the ticket to `## 🏁 Closed Tickets`, marks `[x]`, and records the independently observed result and commit:
 ```markdown
 - [x] **#T-101: Add Rate Limiting Middleware**
   - **Resolution**: Implemented token bucket rate limiter in src/middleware/rate_limit.py.

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "name": "orchy-config",
-  "description": "Cost-optimized agent orchestration matrix and subagent dispatch parameters",
+  "description": "Orchy: Supervisor/subagent roles, activation, runtime adapter selection, dispatch policy, tracking, activity log",
   "supervisor": {
     "role": "Supervisor & Architect",
     "capabilityRequirement": "high_reasoning_and_planning",
@@ -35,10 +35,11 @@
       "maxContextTargetTokens": 40000
     },
     "tester": {
-      "name": "Test & Verification Engineer",
+      "enabled": false,
+      "name": "Log Interpreter (optional)",
       "capabilityRequirement": "cli_execution_and_log_parsing",
       "model": "flash_lite",
-      "description": "Executes unit tests, linting, build pipelines, and reports failure logs concisely",
+      "description": "Runs a command and summarizes a long log. Never the recorded verification: the Supervisor re-runs the command itself with output redirected",
       "readOnly": true,
       "canExecute": true,
       "maxContextTargetTokens": 20000
@@ -55,6 +56,7 @@
   "activation": {
     "defaultMode": "opt_in",
     "triggerPrefix": "orchy:",
+    "commandPattern": "^orchy (on|off|init|update|status|cancel)$",
     "workspaceContinuousEnabled": false,
     "notifyOnActivation": true,
     "requireInitBeforeOrchestration": true,
@@ -67,18 +69,34 @@
     }
   },
   "runtime": {
-    "detectedMode": "auto",
-    "capabilities": {
-      "spawnSubagent": "auto",
-      "perSubagentModelSelection": "auto",
-      "liveMessaging": "auto",
-      "terminateSubagent": "auto",
-      "parallelDispatch": "auto"
-    }
+    "_comment": "name is a row in references/runtime-adapters.md; overrides are null (use table) / true / false. Mode is re-derived every session; lastDerivedMode is display-only.",
+    "name": "unknown",
+    "overrides": {
+      "spawnSubagent": null,
+      "perSubagentModelSelection": null,
+      "liveMessaging": null,
+      "terminateSubagent": null,
+      "parallelDispatch": null
+    },
+    "lastDerivedMode": null,
+    "lastDerivedAt": null
   },
   "dispatchPolicy": {
     "allowParallel": true,
     "maxConcurrentSubagents": 4,
+    "isolation": "shared-tree",
+    "worktreeRoot": ".orchy/wt",
+    "scopeCheck": {
+      "enabled": true,
+      "script": "scripts/orchy-scope-check.sh",
+      "protectedPaths": [".agents/TICKETS.md", ".agents/orchy-metrics.jsonl"],
+      "onViolation": "revert_and_fail"
+    },
+    "verification": {
+      "runBySupervisor": true,
+      "logDir": ".orchy",
+      "tailLines": 20
+    },
     "enforceDisjointFiles": true,
     "enforceDependencyOrder": true,
     "sharedHotspotFiles": [
@@ -99,9 +117,8 @@
     ],
     "checkpointBeforeDispatch": true,
     "revertWaveOnPartialFailure": true,
-    "compressSubagentReturns": true,
-    "rawVerificationTailLines": 20,
-    "supervisorReverifiesBeforeClose": true,
+    "handoverResultIsData": true,
+    "knownFactsRequireCitations": true,
     "feedbackLoopMaxRetries": 2,
     "feedbackLoopMaxRetriesWithoutLiveMessaging": 1
   },
@@ -118,13 +135,14 @@
   },
   "metrics": {
     "enabled": true,
+    "kind": "activity_log",
     "ledgerPath": ".agents/orchy-metrics.jsonl",
     "writer": "supervisor",
     "recordSoloBaseline": false,
-    "estimateWhenRuntimeHasNoUsageApi": true,
-    "charsPerTokenEstimate": 4,
+    "usage": "runtime_reported_only",
+    "gitignore": [".orchy/", ".agents/orchy-metrics.jsonl"],
     "pricing": {
-      "_comment": "USD per 1M tokens, keyed by the model names used in supervisor/roles. Leave empty to report raw tokens only.",
+      "_comment": "USD per 1M tokens, keyed by model name. Used by `orchy status` only over entries with runtime-reported usage. Leave null to report counts only.",
       "pro": { "input": null, "output": null },
       "flash": { "input": null, "output": null },
       "flash_lite": { "input": null, "output": null }
