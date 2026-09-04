@@ -5,7 +5,7 @@
 
 A specialized skill and framework for **cost-optimized, hierarchical multi-agent orchestration**. 
 
-It equips an AI coding assistant (like Antigravity, Claude Code, or Cursor) to function as an **Architect / Supervisor** that manages context windows and delegates token-heavy exploration, coding, testing, and reviewing tasks to fast, economical subagent tiers (`flash` and `flash_lite`).
+It equips an AI coding assistant (like Antigravity, Claude Code, or Cursor) to function as an **Architect / Supervisor** that manages context windows and delegates token-heavy exploration, coding, testing, and reviewing tasks to fast, economical subagent tiers (`flash` and `flash_lite`). The skill is a prompt document (`SKILL.md` plus templates), not a runtime: it changes how the agent behaves, using whatever subagent primitives the host actually exposes.
 
 ---
 
@@ -13,31 +13,34 @@ It equips an AI coding assistant (like Antigravity, Claude Code, or Cursor) to f
 
 In modern AI-assisted engineering, running a top-tier reasoning model (Pro / Opus-class) for every single sub-task has two fatal drawbacks:
 
-1. **Massive Token Inefficiency**: 80% of tokens spent in coding sessions are consumed by repetitive codebase grepping, reading large files, running test commands, and formatting code.
+1. **Massive Token Inefficiency**: Most tokens in a coding session go to repetitive codebase grepping, reading large files, running test commands, and formatting code, none of which needs frontier-level reasoning.
 2. **Context Window Degradation**: As intermediate tool calls and test outputs accumulate, the model's context window dilutes, increasing latency and hallucination rates.
 
-### The Solution: Hierarchical Tiering
+### The Solution: Hierarchical Tiering with Supervisor-Owned Verification
 
 ```mermaid
 flowchart TD
     User([User]) <--> Supervisor[Supervisor / Architect\nModel: Pro / Inherit]
-    
-    Supervisor -->|Task Decomposition| Matrix{Parallel Dispatcher\n(Conflict Check)}
-    
+
+    Supervisor -->|Decompose + dependency order| Matrix{Wave Dispatcher\nDisjoint files · hotspots · DAG}
+
     subgraph Economical Subagent Workers
-        Matrix -->|Read-only Search| Scout[Codebase Scout\nModel: Flash-Lite (~90% cheaper)]
-        Matrix -->|Scoped Code Edit| Coder[Implementer\nModel: Flash (~80% cheaper)]
-        Matrix -->|Run Tests & Lint| Tester[QA Runner\nModel: Flash-Lite (~90% cheaper)]
-        Matrix -->|Standards & Specs| Reviewer[Reviewer\nModel: Flash (~80% cheaper)]
+        Matrix -->|Read-only Search| Scout[Codebase Scout\nModel: Flash-Lite]
+        Matrix -->|Scoped Code Edit| Coder[Implementer\nModel: Flash]
+        Matrix -->|Run Tests & Lint| Tester[QA Runner\nModel: Flash-Lite]
+        Matrix -->|Standards & Specs| Reviewer[Reviewer\nModel: Flash]
     end
-    
-    Scout -->|Compressed Summary| Supervisor
-    Coder -->|Diff & Verification| Supervisor
-    Tester -->|Test Pass/Fail Logs| Supervisor
-    Reviewer -->|Code Smells & Critique| Supervisor
-    
-    Supervisor -->|Sync Tickets & Milestones| GitHub[(GitHub Issues / PRs)]
+
+    Scout -->|Compressed findings| Supervisor
+    Coder -->|Diff summary + raw test tail| Supervisor
+    Tester -->|Pass/fail + raw log tail| Supervisor
+    Reviewer -->|Critique| Supervisor
+
+    Supervisor -->|Re-run verification independently| Verify[Independent Verification]
+    Verify -->|Commit · close tickets| Tracker[(TICKETS.md or GitHub Issues)]
 ```
+
+Workers never commit, push, call `gh`, or edit the ticket board. The Supervisor is the single writer for shared state and closes nothing on a worker's self-report alone.
 
 ---
 
@@ -58,100 +61,126 @@ flowchart TD
 
 ```
 agent-orchestration/
-├── SKILL.md                          # The core Antigravity skill definition
+├── SKILL.md                          # The core skill definition (Antigravity-first, portable)
 ├── README.md                         # Project documentation
 ├── LICENSE                           # MIT License
 ├── .gitignore                        # Git ignore rules
 ├── templates/
 │   ├── AGENTS.md.template            # Injectable orchestration rules for target repos
-│   ├── orchestration.config.json     # Schema and default role-to-model configuration
+│   ├── orchestration.config.json     # Default role-to-model matrix, runtime mode, dispatch policy
 │   └── TICKETS.md.template           # Scaffold template for local Markdown task board
 └── references/
-    ├── dispatch-guidelines.md        # Parallel safety, error recovery & economics
-    └── ticketing-workflow.md         # GitHub Issues & local markdown ticket management
+    ├── dispatch-guidelines.md        # Parallel safety, dependency ordering, verification, runtime fallbacks, economics
+    └── ticketing-workflow.md         # Single-writer ticketing for GitHub Issues & local Markdown
 ```
 
 ---
 
 ## 📦 Installation
 
-### Option 1: Global Installation (Recommended for Antigravity)
+The skill is plain Markdown; install it wherever your runtime discovers skills.
 
-Clone or link this repository into your global Antigravity skills directory:
+### Antigravity (global)
 
 ```bash
-# Clone to your local skills directory
 git clone https://github.com/davekazemi/agent-orchestration.git ~/.gemini/config/skills/agent-orchestrator
 ```
 
-The skill will be automatically available across all projects on your machine.
+The skill becomes available across all projects on your machine.
 
-### Option 2: Project-Local Installation
+### Claude Code (global)
 
-Copy this repository into your project's `.agents/skills/` directory:
+```bash
+git clone https://github.com/davekazemi/agent-orchestration.git ~/.claude/skills/agent-orchestrator
+```
+
+### Project-local (any runtime that reads `.agents/skills/` or `AGENTS.md`)
 
 ```bash
 mkdir -p .agents/skills/
 git clone https://github.com/davekazemi/agent-orchestration.git .agents/skills/agent-orchestrator
 ```
 
+After installation run `/orchestrate init` once per project; it writes the orchestration block into that project's `AGENTS.md`, which most runtimes read even if they do not load `SKILL.md` directly.
+
 ---
 
 ## 🛠️ Usage
 
+### Commands
+
+| Command | Description |
+| :--- | :--- |
+| `orch: <task>` | Run one task with multi-agent orchestration |
+| `/orchestrate on` / `off` | Enable or disable ambient orchestration for the workspace |
+| `/orchestrate init` | Probe runtime capabilities, choose model tiers and ticketing mode, write config + `AGENTS.md` |
+| `/orchestrate update` | Change role-to-model assignments, parallelism limits, or runtime capability overrides |
+| `/orchestrate status` | Show active subagents, detected runtime mode, and token statistics |
+| `/orchestrate cancel` | Terminate in-flight subagents and return to manual control |
+
 ### 1. Initialize Orchestration in a Project
-In your chat or CLI:
 ```text
 /orchestrate init
 ```
-The agent scans available models in your runtime environment (Antigravity, Cursor, Claude Code, etc.), presents them in a numbered menu (e.g., `[1]` to `[N]`), and suggests smart defaults matched to each role's capability profile:
-- **Supervisor** (High Reasoning & Planning): Top-tier model (e.g. `[1]` Pro / Sonnet)
-- **Codebase Scout** (High-throughput Read & Search): Ultra-lightweight model (e.g. `[3]` Flash-Lite / Haiku)
-- **Implementer** (Precise Code Synthesis): Balanced model (e.g. `[2]` Flash / Sonnet)
-- **Tester / QA** (CLI Exec & Log Parsing): Ultra-lightweight model (e.g. `[3]` Flash-Lite / Haiku)
-- **Reviewer** (Spec & Standards Critique): Balanced model (e.g. `[2]` Flash / Sonnet)
+The agent:
+1. **Probes the runtime** for subagent spawning, per-subagent model selection, and live messaging, and records a mode (`full`, `tiered-sync`, `context-only`, or `solo`). If the mode is `solo`, it stops and tells you orchestration is unavailable here.
+2. **Lists the models it can actually see**, presents them in a numbered menu, and suggests defaults matched to each role's capability profile:
+   - **Supervisor** (High Reasoning & Planning): top-tier class (Pro / Opus)
+   - **Codebase Scout** (High-throughput Read & Search): lightweight class (Flash-Lite / Haiku)
+   - **Implementer** (Precise Code Synthesis): balanced class (Flash / Sonnet)
+   - **Tester / QA** (CLI Exec & Log Parsing): lightweight class (Flash-Lite / Haiku)
+   - **Reviewer** (Spec & Standards Critique): balanced class (Flash / Sonnet)
+3. **Asks for a ticketing mode**: local Markdown (`.agents/TICKETS.md`, default) or GitHub Issues via `gh`.
 
-You can press `y` to accept the smart recommendations, or enter custom model numbers for each role. It will then persist the matrix to `.agents/orchestration.config.json` and your project's `AGENTS.md`.
+Press `y` to accept the recommendations or enter custom numbers per role. The result is persisted to `.agents/orchestration.config.json` and injected into your project's `AGENTS.md`.
 
-### 2. Update Model Assignments
+### 2. Update Configuration
 ```text
 /orchestrate update
 ```
-Allows switching any subagent role (e.g. promoting the Implementer to `pro` for complex refactors, or switching the Tester to `flash`).
+Switch any role's model (e.g. promote the Implementer to `pro` for a hard refactor), change parallelism limits, or override the detected runtime capabilities.
 
 ### 3. How Orchestration Runs (Opt-In by Default)
 
 By default, the primary model works **solo / directly** on tasks to avoid unnecessary dispatch latency.
 
 #### Option A: Per-Task Trigger (`orch:`)
-Simply prepend `orch:` to any complex task:
+Prepend `orch:` to a complex task:
 > `orch: add token expiry validation in auth.py and update the unit test suite`
 
 #### Option B: Workspace Continuous Toggle
-To enable auto-orchestration for all complex tasks without typing `orch:`:
 ```text
-/orchestrate on
-```
-To revert back to requiring the `orch:` prefix:
-```text
-/orchestrate off
+/orchestrate on    # orchestrate every task that passes the complexity threshold
+/orchestrate off   # back to requiring the orch: prefix
 ```
 
+#### Complexity Threshold
+Even when triggered, orchestration engages only if the task spans **3+ files across 2+ modules**, needs **~10+ file reads** before a plan can be formed, or has **2+ genuinely independent units**. Smaller tasks run solo because dispatch overhead would exceed the savings. In `context-only` mode the thresholds double.
+
 #### Mandatory Transparency Banner
-Whenever multi-agent orchestration engages (either via `orch:` or `/orchestrate on`), the agent **always displays an alert notice at the very top of its initial response**:
+Whenever orchestration engages, the agent displays a notice at the very top of its initial response, including the detected runtime mode:
 
 ```markdown
 > [!NOTE]
-> 🚀 **Orchestration Active**: Delegating sub-tasks across tiered subagents (Implementer: `flash`, Tester: `flash_lite`, Scout: `flash_lite`).
+> 🚀 **Orchestration Active** (mode: `full`): Delegating sub-tasks across tiered subagents (Implementer: `flash`, Tester: `flash_lite`, Scout: `flash_lite`).
 ```
 
-This ensures complete clarity—you always know exactly when subagents are working on your behalf.
+In `context-only` mode the banner also states that no cost savings are expected.
+
+#### What Happens During an Orchestrated Task
+1. **Decompose** the objective into units, each with a role, a bounded file scope, and a deliverable.
+2. **Check conflicts and dependencies**: disjoint files, shared hotspot files (manifests, lockfiles, barrel files, `TICKETS.md`) serialized or reserved for the Supervisor, and a dependency order so a unit never builds against an interface another unit is still changing.
+3. **Checkpoint** the working tree, then dispatch a wave of workers within the concurrency limit, pasting relevant Scout findings into each prompt.
+4. **Collect** structured results: status, files touched, terse diff summary, the raw tail of the verification output, and any proposed discoveries.
+5. **Re-verify independently**: the Supervisor re-runs the test/lint command itself before trusting any worker's `SUCCESS`.
+6. **Commit and close**: the Supervisor commits, records discoveries, and closes tickets. On a partial wave failure it either commits a coherent subset or reverts to the checkpoint.
+7. **Feedback loop**: failures go back to the worker with the exact error (live message where supported, respawn-with-context otherwise). Two strikes on the same step escalate to you.
 
 ---
 
 ## 🧩 Runtime Compatibility
 
-The dispatch mechanics are written against Antigravity primitives (`invoke_subagent`, `send_message`, `manage_subagents`). Other runtimes usually lack live messaging and sometimes lack per-subagent model selection. The skill probes for these at init and degrades explicitly:
+The dispatch mechanics are written against Antigravity primitives (`invoke_subagent`, `send_message`, `manage_subagents`). Other runtimes usually lack live messaging and sometimes lack per-subagent model selection. The skill probes for these at init, records the result in `orchestration.config.json`, and degrades explicitly:
 
 | Mode | What the runtime offers | Effect |
 | :--- | :--- | :--- |
@@ -159,6 +188,8 @@ The dispatch mechanics are written against Antigravity primitives (`invoke_subag
 | `tiered-sync` | spawn + per-role models | Feedback via respawn-with-context, one retry |
 | `context-only` | spawn only | Context isolation only; no cost savings, large tasks only |
 | `solo` | no spawn primitive | Orchestration disabled with a notice |
+
+If the probe gets it wrong, override individual capabilities with `/orchestrate update` (option 7).
 
 ---
 
