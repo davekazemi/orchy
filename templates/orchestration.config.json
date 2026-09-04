@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "agent-orchestration-config",
   "description": "Cost-optimized agent orchestration matrix and subagent dispatch parameters",
   "supervisor": {
@@ -9,10 +9,12 @@
     "model": "pro",
     "responsibilities": [
       "Task intake and decomposition",
+      "Dependency ordering and interface freezes",
       "Interactive human-in-the-loop decisions",
       "Subagent dispatch and parallel scheduling",
       "Context window pruning and memory management",
-      "Diff verification and quality control"
+      "Independent re-verification of subagent claims",
+      "Sole writer for ticket board, git commits, and gh operations"
     ]
   },
   "roles": {
@@ -37,7 +39,8 @@
       "capabilityRequirement": "cli_execution_and_log_parsing",
       "model": "flash_lite",
       "description": "Executes unit tests, linting, build pipelines, and reports failure logs concisely",
-      "readOnly": false,
+      "readOnly": true,
+      "canExecute": true,
       "maxContextTargetTokens": 20000
     },
     "reviewer": {
@@ -53,14 +56,53 @@
     "defaultMode": "opt_in",
     "triggerPrefix": "orch:",
     "workspaceContinuousEnabled": false,
-    "notifyOnActivation": true
+    "notifyOnActivation": true,
+    "complexityThreshold": {
+      "minFiles": 3,
+      "minModules": 2,
+      "minExpectedReads": 10,
+      "minParallelUnits": 2,
+      "contextOnlyMultiplier": 2
+    }
+  },
+  "runtime": {
+    "detectedMode": "auto",
+    "capabilities": {
+      "spawnSubagent": "auto",
+      "perSubagentModelSelection": "auto",
+      "liveMessaging": "auto",
+      "terminateSubagent": "auto",
+      "parallelDispatch": "auto"
+    }
   },
   "dispatchPolicy": {
     "allowParallel": true,
     "maxConcurrentSubagents": 4,
     "enforceDisjointFiles": true,
+    "enforceDependencyOrder": true,
+    "sharedHotspotFiles": [
+      "package.json",
+      "package-lock.json",
+      "pnpm-lock.yaml",
+      "yarn.lock",
+      "pyproject.toml",
+      "requirements.txt",
+      "Cargo.toml",
+      "Cargo.lock",
+      "go.mod",
+      "go.sum",
+      "**/index.ts",
+      "**/index.js",
+      "**/__init__.py",
+      ".agents/TICKETS.md"
+    ],
+    "checkpointBeforeDispatch": true,
+    "revertWaveOnPartialFailure": true,
     "compressSubagentReturns": true,
-    "feedbackLoopMaxRetries": 2
+    "rawVerificationTailLines": 20,
+    "supervisorReverifiesBeforeClose": true,
+    "feedbackLoopMaxRetries": 2,
+    "feedbackLoopMaxRetriesWithoutLiveMessaging": 1
   },
   "ticketing": {
     "provider": "markdown",
@@ -69,6 +111,8 @@
       "syncWithIssues": true,
       "issueLabelPrefix": "orchestrate:"
     },
-    "allowSubagentTicketing": true
+    "writer": "supervisor",
+    "allowSubagentTicketing": false,
+    "subagentsMayCommit": false
   }
 }

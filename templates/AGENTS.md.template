@@ -5,21 +5,23 @@
 
 ## 1. Supervisor Role & Model Tiers
 
-The main conversational agent operates as the **Supervisor** (Model: `{{SUPERVISOR_MODEL}}`). The Supervisor is strictly responsible for:
+The main conversational agent operates as the **Supervisor** (Model: `{{SUPERVISOR_MODEL}}`, runtime mode: `{{RUNTIME_MODE}}`). The Supervisor is strictly responsible for:
 - Receiving user instructions and clarifying ambiguity.
-- Creating the execution plan and decomposing tasks into independent units.
+- Creating the execution plan, decomposing tasks into independent units, and ordering them by dependency.
 - Managing subagent concurrency and model selection.
-- Reviewing combined diffs, test outputs, and ensuring integration integrity.
+- Independently re-verifying subagent claims, reviewing combined diffs, and ensuring integration integrity.
+- All writes to shared state: `.agents/TICKETS.md`, `git commit`/`push`, and `gh`.
 
 Routine, high-volume, or exploratory operations **must be delegated** to specialized subagents matching these capability profiles:
 
 | Role | Capability Profile | Assigned Model | Responsibility | Permissions |
 | :--- | :--- | :--- | :--- | :--- |
 | **Codebase Scout** | Fast Read / High Throughput | `{{SCOUT_MODEL}}` | Grep, symbol discovery, directory mapping, reading docs | Read-only |
-| **Implementer** | Precise Code Synthesis | `{{IMPLEMENTER_MODEL}}` | Writing and editing code within assigned files | Read/Write |
-| **Tester / QA** | CLI Exec & Log Parsing | `{{TESTER_MODEL}}` | Running test suites, build checks, and linters | Read/Write/Exec |
+| **Implementer** | Precise Code Synthesis | `{{IMPLEMENTER_MODEL}}` | Writing and editing code within assigned files | Read/Write (no git, no ticket board) |
+| **Tester / QA** | CLI Exec & Log Parsing | `{{TESTER_MODEL}}` | Running test suites, build checks, and linters | Read/Exec (no git, no ticket board) |
 | **Reviewer** | Spec & Standards Critique | `{{REVIEWER_MODEL}}` | Standards adherence, spec validation, diff critique | Read-only |
 
+No subagent runs `git add`/`commit`/`push`, calls `gh`, or edits `.agents/TICKETS.md`. Subagents propose discoveries in their result; the Supervisor records them.
 
 ## 2. Activation Triggers & Transparency Banner
 
@@ -27,20 +29,30 @@ Routine, high-volume, or exploratory operations **must be delegated** to special
    - The user's prompt begins with `orch:` (e.g. `orch: build feature x`), OR
    - The workspace toggle is turned on via `/orchestrate on`.
    - In all other cases, execute tasks **solo / directly** with the main model.
-2. **Mandatory Transparency Banner**: Whenever orchestration activates, prepend this notice at the very top of your initial response:
+2. **Complexity Threshold**: Even when activated, orchestrate only if the task spans 3+ files across 2+ modules, needs ~10+ file reads before planning, or contains 2+ genuinely independent units. Smaller tasks run solo; orchestration overhead exceeds the savings. In `context-only` mode, double these thresholds.
+3. **Mandatory Transparency Banner**: Whenever orchestration activates, prepend this notice at the very top of your initial response:
    ```markdown
    > [!NOTE]
-   > 🚀 **Orchestration Active**: Delegating sub-tasks across tiered subagents (Implementer: `{{IMPLEMENTER_MODEL}}`, Tester: `{{TESTER_MODEL}}`, Scout: `{{SCOUT_MODEL}}`).
+   > 🚀 **Orchestration Active** (mode: `{{RUNTIME_MODE}}`): Delegating sub-tasks across tiered subagents (Implementer: `{{IMPLEMENTER_MODEL}}`, Tester: `{{TESTER_MODEL}}`, Scout: `{{SCOUT_MODEL}}`).
    ```
+   In `context-only` mode the banner must also state "no cost savings expected".
 
 ## 3. Dispatch & Concurrency Rules
 
 1. **Strict File Isolation**: Never spawn two parallel subagents that modify the same file. Parallel subagents must target strictly disjoint file paths or directory sub-trees.
-2. **Context Compression**: Subagents must return only structured findings:
-   - Status (PASS / FAIL / PARTIAL)
+2. **Hotspot Files**: Package manifests, lockfiles, barrel/`index` files, route registries, DI containers, migrations, and `.agents/TICKETS.md` are serialized or reserved for the Supervisor to edit once after the wave.
+3. **Dependency Order**: Disjoint paths are not sufficient. If unit B consumes an interface unit A changes, run B in a later wave or freeze the exact new contract into both prompts. Only units with no unresolved edges share a wave.
+4. **Checkpoint Before Dispatch**: Require a clean working tree or record HEAD / `git stash`, so a failed wave can be reverted as a unit.
+5. **Context Compression**: Subagents must return only structured findings:
+   - Status (SUCCESS / FAILED / BLOCKED)
    - Specific files modified or inspected
-   - Terse error traces or diff summaries (no full file dumps)
-3. **Loopback & Iteration**: When verification fails:
-   - The Supervisor sends targeted feedback using `send_message` with the exact error.
+   - Terse diff summary (no full file dumps)
+   - Verification command plus the last ~20 lines of its raw output, verbatim
+   - Proposed discoveries (out-of-scope issues) for the Supervisor to record
+6. **Independent Verification**: A subagent's self-report is a claim. Before committing or closing a ticket, the Supervisor re-runs the verification command itself (or via a fresh Tester that has not seen the claim). Only the independent result is recorded.
+7. **Loopback & Iteration**: When verification fails:
+   - With live messaging (`full` mode): send targeted feedback via `send_message` with the exact error.
+   - Without live messaging: respawn a fresh worker with the previous result, the exact error, and the same scope; allow one such retry.
    - If a subagent fails verification twice on the same step, halt and escalate to the human user.
+8. **Partial Wave Failure**: Commit a partially successful wave only if the successful subset is independently coherent; otherwise revert to the checkpoint and re-plan.
 <!-- agent-orchestration:end -->

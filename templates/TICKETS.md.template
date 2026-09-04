@@ -1,18 +1,18 @@
 # Project Orchestration Task Board
 
-> Managed by `agent-orchestrator`. Tasks are created, worked, and closed by the Supervisor and Subagents.
+> Managed by `agent-orchestrator`. **Single writer: the Supervisor.** Subagents propose discoveries and report results in their return contract; they never edit this file.
 
 ## 🟢 Open Tickets
-<!-- Tickets ready to be picked up by subagents -->
+<!-- Tickets ready to be dispatched to subagents -->
 
 ## 🟡 In Progress
 <!-- Currently active tasks -->
 
 ## 🟣 Subagent Discoveries
-<!-- Discovered blockers, bugs, or missing items flagged by subagents during execution -->
+<!-- Out-of-scope blockers, bugs, or missing items proposed by subagents and recorded here by the Supervisor -->
 
 ## 🏁 Closed Tickets
-<!-- Completed and verified tasks with resolution summaries -->
+<!-- Tasks closed by the Supervisor after independent re-verification, with resolution summaries -->
 
 ---
 
@@ -22,6 +22,9 @@
 - [ ] **#T-001: [Task Title]**
   - **Role**: `implementer` (Model: `flash`)
   - **Scope**: `src/modules/...`
+  - **Depends on**: `#T-000` or —
   - **Objective**: Concise description of what needs to be done.
-  - **Resolution** (filled upon close): Brief summary + commit hash.
+  - **Resolution** (filled upon close): Brief summary.
+  - **Verified** (filled upon close): Command re-run by Supervisor → observed result.
+  - **Commit** (filled upon close): hash | **Implemented by**: role (model).
 ```

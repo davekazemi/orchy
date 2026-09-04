@@ -11,7 +11,7 @@ It equips an AI coding assistant (like Antigravity, Claude Code, or Cursor) to f
 
 ## 🚀 Why Agent Orchestrator?
 
-In modern AI-assisted engineering, running a top-tier reasoning model (e.g. Gemini 1.5/2.5/3 Pro, Claude 3.7 Sonnet) for every single sub-task has two fatal drawbacks:
+In modern AI-assisted engineering, running a top-tier reasoning model (Pro / Opus-class) for every single sub-task has two fatal drawbacks:
 
 1. **Massive Token Inefficiency**: 80% of tokens spent in coding sessions are consumed by repetitive codebase grepping, reading large files, running test commands, and formatting code.
 2. **Context Window Degradation**: As intermediate tool calls and test outputs accumulate, the model's context window dilutes, increasing latency and hallucination rates.
@@ -45,10 +45,12 @@ flowchart TD
 
 - ⚙️ **Interactive Onboarding (`/orchestrate init`)**: Prompts the user to configure model tiers for the Supervisor and subagent roles, then persists the matrix into `AGENTS.md` and configuration files.
 - 🔄 **Dynamic Reconfiguration (`/orchestrate update`)**: Easily change assigned models, roles, or concurrency settings at any time.
-- ⚡ **Safe Parallel Dispatch**: Enforces the **Disjoint File Invariant**—subagents targeting disjoint directories execute in parallel without merge race conditions.
-- 📦 **Context Window Compression**: Subagents report only structured summaries, affected file lists, and test assertions. The Supervisor never gets bogged down with raw dumps.
-- 🔁 **Targeted Feedback Loops**: When a subagent encounters a test failure, the Supervisor sends corrective instructions via `send_message` rather than rewriting the code itself.
-- 🎫 **Flexible Dual-Mode Ticketing**: Choose between **Local Markdown** (`.agents/TICKETS.md` for offline, zero-network self-containment) or **GitHub Issues** (via `gh` CLI). Subagents can claim, discover new sub-tickets, and close resolved tickets directly in Markdown.
+- 🧭 **Runtime Capability Detection**: Probes for subagent spawning, per-subagent model selection, and live messaging, then selects a mode (`full`, `tiered-sync`, `context-only`, `solo`) instead of assuming Antigravity tool names exist everywhere.
+- ⚡ **Safe Parallel Dispatch**: Enforces the **Disjoint File Invariant** plus **dependency ordering** and **hotspot-file serialization**—units that share an interface or a manifest file never run in the same wave unverified.
+- 📦 **Context Window Compression**: Subagents report only structured summaries, affected file lists, and the raw tail of their verification output. The Supervisor never gets bogged down with raw dumps.
+- ✅ **Independent Verification**: A subagent's `SUCCESS` is treated as a claim. The Supervisor re-runs verification before committing or closing a ticket.
+- 🔁 **Targeted Feedback Loops**: When a subagent encounters a test failure, the Supervisor sends corrective instructions via `send_message` (or respawns with the error embedded where live messaging is unavailable) rather than rewriting the code itself.
+- 🎫 **Single-Writer Dual-Mode Ticketing**: Choose between **Local Markdown** (`.agents/TICKETS.md` for offline, zero-network self-containment) or **GitHub Issues** (via `gh` CLI). Subagents propose discoveries; only the Supervisor writes the board, commits, and closes tickets.
 
 ---
 
@@ -147,14 +149,29 @@ This ensures complete clarity—you always know exactly when subagents are worki
 
 ---
 
+## 🧩 Runtime Compatibility
+
+The dispatch mechanics are written against Antigravity primitives (`invoke_subagent`, `send_message`, `manage_subagents`). Other runtimes usually lack live messaging and sometimes lack per-subagent model selection. The skill probes for these at init and degrades explicitly:
+
+| Mode | What the runtime offers | Effect |
+| :--- | :--- | :--- |
+| `full` | spawn + per-role models + live messaging | Everything works as documented |
+| `tiered-sync` | spawn + per-role models | Feedback via respawn-with-context, one retry |
+| `context-only` | spawn only | Context isolation only; no cost savings, large tasks only |
+| `solo` | no spawn primitive | Orchestration disabled with a notice |
+
+---
+
 ## 📊 Economics & Token Savings
 
-| Role | Standard Single-Agent | Agent-Orchestrator Tier | Typical Token Cost Savings |
+| Role | Standard Single-Agent | Agent-Orchestrator Tier | Per-Token Cost Ratio (indicative) |
 | :--- | :--- | :--- | :--- |
-| **Exploration / Grep** | `pro` | `flash_lite` | **~90%** |
-| **Implementation** | `pro` | `flash` | **~75% - 80%** |
-| **Unit Testing / Lint**| `pro` | `flash_lite` | **~90%** |
+| **Exploration / Grep** | `pro` | `flash_lite` | **~0.05x - 0.10x** |
+| **Implementation** | `pro` | `flash` | **~0.15x - 0.25x** |
+| **Unit Testing / Lint**| `pro` | `flash_lite` | **~0.05x - 0.15x** |
 | **Supervisor Oversight**| `pro` | `pro` | Clean context, minimal tokens |
+
+These are per-token list-price ratios, not end-to-end savings. Each worker starts cold and re-reads context, cheaper models retry more often, and decomposition, dependency analysis, and independent verification all run on the Supervisor. Savings are real on large, genuinely parallel tasks and can be zero or negative on small or tightly coupled ones, which is why orchestration is opt-in and gated by a complexity threshold.
 
 ---
 
