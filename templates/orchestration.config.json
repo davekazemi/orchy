@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "name": "agent-orchestration-config",
   "description": "Cost-optimized agent orchestration matrix and subagent dispatch parameters",
   "supervisor": {
@@ -57,6 +57,7 @@
     "triggerPrefix": "orch:",
     "workspaceContinuousEnabled": false,
     "notifyOnActivation": true,
+    "requireInitBeforeOrchestration": true,
     "complexityThreshold": {
       "minFiles": 3,
       "minModules": 2,
@@ -114,5 +115,19 @@
     "writer": "supervisor",
     "allowSubagentTicketing": false,
     "subagentsMayCommit": false
+  },
+  "metrics": {
+    "enabled": true,
+    "ledgerPath": ".agents/orchestration-metrics.jsonl",
+    "writer": "supervisor",
+    "recordSoloBaseline": false,
+    "estimateWhenRuntimeHasNoUsageApi": true,
+    "charsPerTokenEstimate": 4,
+    "pricing": {
+      "_comment": "USD per 1M tokens, keyed by the model names used in supervisor/roles. Leave empty to report raw tokens only.",
+      "pro": { "input": null, "output": null },
+      "flash": { "input": null, "output": null },
+      "flash_lite": { "input": null, "output": null }
+    }
   }
 }

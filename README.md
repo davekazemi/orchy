@@ -1,11 +1,21 @@
 # Agent Orchestrator
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Antigravity Skill](https://img.shields.io/badge/Skill-Antigravity-blue.svg)](https://github.com/davekazemi/agent-orchestration)
+[![skills.sh](https://skills.sh/b/davekazemi/agent-orchestration)](https://skills.sh/davekazemi/agent-orchestration)
+[![Install](https://img.shields.io/badge/install-npx%20skills%20add-black.svg)](#-installation)
 
-A specialized skill and framework for **cost-optimized, hierarchical multi-agent orchestration**. 
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-supported-blue.svg)](#-runtime-compatibility)
+[![Cursor](https://img.shields.io/badge/Cursor-supported-blue.svg)](#-runtime-compatibility)
+[![Codex](https://img.shields.io/badge/Codex-supported-blue.svg)](#-runtime-compatibility)
+[![GitHub Copilot](https://img.shields.io/badge/GitHub%20Copilot-supported-blue.svg)](#-runtime-compatibility)
+[![Windsurf](https://img.shields.io/badge/Windsurf-supported-blue.svg)](#-runtime-compatibility)
+[![Gemini CLI](https://img.shields.io/badge/Gemini%20CLI-supported-blue.svg)](#-runtime-compatibility)
+[![Antigravity](https://img.shields.io/badge/Antigravity-supported-blue.svg)](#-runtime-compatibility)
+[![Cline](https://img.shields.io/badge/Cline-supported-blue.svg)](#-runtime-compatibility)
 
-It equips an AI coding assistant (like Antigravity, Claude Code, or Cursor) to function as an **Architect / Supervisor** that manages context windows and delegates token-heavy exploration, coding, testing, and reviewing tasks to fast, economical subagent tiers (`flash` and `flash_lite`). The skill is a prompt document (`SKILL.md` plus templates), not a runtime: it changes how the agent behaves, using whatever subagent primitives the host actually exposes.
+A specialized skill and framework for **cost-optimized, hierarchical multi-agent orchestration**.
+
+It equips any agent that reads `SKILL.md` / `AGENTS.md` (Claude Code, Cursor, Codex, Copilot, Windsurf, Gemini CLI, Antigravity, Cline, and others) to function as an **Architect / Supervisor** that manages context windows and delegates token-heavy exploration, coding, testing, and reviewing tasks to fast, economical subagent tiers (`flash` and `flash_lite`). The skill is a prompt document (`SKILL.md` plus templates), not a runtime: it changes how the agent behaves, using whatever subagent primitives the host actually exposes.
 
 ---
 
@@ -78,30 +88,26 @@ agent-orchestration/
 
 ## 📦 Installation
 
-The skill is plain Markdown; install it wherever your runtime discovers skills.
-
-### Antigravity (global)
+Install with the [skills CLI](https://skills.sh/docs/cli). It detects the agents on your machine and places the skill where each one looks for it, so the same command works for Claude Code, Cursor, Codex, Copilot, Windsurf, Gemini CLI, Antigravity, Cline, and the rest:
 
 ```bash
-git clone https://github.com/davekazemi/agent-orchestration.git ~/.gemini/config/skills/agent-orchestrator
+npx skills add davekazemi/agent-orchestration
 ```
 
-The skill becomes available across all projects on your machine.
+No global install is needed; `npx` fetches the CLI on demand. The CLI is open source at [vercel-labs/skills](https://github.com/vercel-labs/skills) and collects anonymous install telemetry, which you can disable with `DISABLE_TELEMETRY=1`.
 
-### Claude Code (global)
+<details>
+<summary>Manual install (no Node.js)</summary>
 
-```bash
-git clone https://github.com/davekazemi/agent-orchestration.git ~/.claude/skills/agent-orchestrator
-```
-
-### Project-local (any runtime that reads `.agents/skills/` or `AGENTS.md`)
+The skill is plain Markdown, so you can also clone it into whatever directory your runtime scans for skills, either globally (e.g. `~/.claude/skills/`, `~/.gemini/config/skills/`) or project-locally:
 
 ```bash
 mkdir -p .agents/skills/
 git clone https://github.com/davekazemi/agent-orchestration.git .agents/skills/agent-orchestrator
 ```
+</details>
 
-After installation run `/orchestrate init` once per project; it writes the orchestration block into that project's `AGENTS.md`, which most runtimes read even if they do not load `SKILL.md` directly.
+After installation run `/orchestrate init` once per project. It writes the orchestration block into that project's `AGENTS.md`, which most runtimes read even if they do not load `SKILL.md` directly. If you skip this step, the first `orch:` request will run init for you (see [First-run safeguard](#first-run-safeguard)).
 
 ---
 
@@ -115,7 +121,7 @@ After installation run `/orchestrate init` once per project; it writes the orche
 | `/orchestrate on` / `off` | Enable or disable ambient orchestration for the workspace |
 | `/orchestrate init` | Probe runtime capabilities, choose model tiers and ticketing mode, write config + `AGENTS.md` |
 | `/orchestrate update` | Change role-to-model assignments, parallelism limits, or runtime capability overrides |
-| `/orchestrate status` | Show active subagents, detected runtime mode, and token statistics |
+| `/orchestrate status` | Show active subagents, detected runtime mode, and a cost-weighted summary of the metrics ledger |
 | `/orchestrate cancel` | Terminate in-flight subagents and return to manual control |
 
 ### 1. Initialize Orchestration in a Project
@@ -153,6 +159,9 @@ Prepend `orch:` to a complex task:
 /orchestrate on    # orchestrate every task that passes the complexity threshold
 /orchestrate off   # back to requiring the orch: prefix
 ```
+
+#### First-run safeguard
+`orch:` and `/orchestrate on` never dispatch subagents into an unconfigured workspace. If `.agents/orchestration.config.json` is missing and `AGENTS.md` has no `agent-orchestration` block, the agent stops, tells you the project is not initialized, runs the `/orchestrate init` flow (capability probe, model menu, ticketing choice), and only then continues with your original task. Decline the init prompt and the task runs solo instead. This prevents a cold `orch:` from guessing model tiers or dispatching in a runtime that cannot spawn subagents.
 
 #### Complexity Threshold
 Even when triggered, orchestration engages only if the task spans **3+ files across 2+ modules**, needs **~10+ file reads** before a plan can be formed, or has **2+ genuinely independent units**. Smaller tasks run solo because dispatch overhead would exceed the savings. In `context-only` mode the thresholds double.
@@ -203,6 +212,24 @@ If the probe gets it wrong, override individual capabilities with `/orchestrate 
 | **Supervisor Oversight**| `pro` | `pro` | Clean context, minimal tokens |
 
 These are per-token list-price ratios, not end-to-end savings. Each worker starts cold and re-reads context, cheaper models retry more often, and decomposition, dependency analysis, and independent verification all run on the Supervisor. Savings are real on large, genuinely parallel tasks and can be zero or negative on small or tightly coupled ones, which is why orchestration is opt-in and gated by a complexity threshold.
+
+### Verifying the savings yourself
+
+The ratios above are a hypothesis, not a measurement. The skill gives you two ways to check them against your own workload.
+
+**1. Per-task ledger (`.agents/orchestration-metrics.jsonl`)**
+After every orchestrated task the Supervisor appends one JSON line: task summary, runtime mode, wall time, per-role token counts (input/output per model), retries, whether independent verification passed, and a `source` field that says whether the counts came from the runtime's usage API or were estimated (`chars/4`) because the runtime exposes none. `/orchestrate status` summarizes this ledger: total tokens by model, share of work on economical tiers, cost-weighted total, retry rate. Enable `metrics.recordSoloBaseline` in the config to log ordinary solo tasks too, so the two populations sit side by side.
+
+**2. A/B against the billing dashboard (ground truth)**
+Self-reported counts can be wrong, so the number that matters is what your provider bills. The protocol:
+
+1. Pick a task that clears the complexity threshold and can be re-run from the same commit (a branch off `main`, tests included).
+2. Note the provider usage/billing figure, run the task solo (no `orch:`), note the figure again, and record the delta plus wall time and whether tests pass.
+3. Reset the branch to the same commit, repeat with `orch:`.
+4. Compare **cost**, not raw tokens. Orchestration usually uses *more* total tokens (cold starts, retries) and fewer *expensive* tokens; the savings only show up once each model's tokens are weighted by its price. Put your prices in `metrics.pricing` so `/orchestrate status` weights them the same way.
+5. Repeat on two or three tasks of different shapes. One sample says nothing; a tightly coupled task will likely show a loss and a wide, parallel one a gain. That is the expected result and the reason the complexity threshold exists.
+
+If the ledger and the dashboard disagree by more than roughly 20%, trust the dashboard and treat the runtime's usage reporting as unreliable for that mode.
 
 ---
 

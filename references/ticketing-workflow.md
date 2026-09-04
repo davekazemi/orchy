@@ -18,7 +18,7 @@ Large tasks should be decoupled into two layers:
    * Returns a result contract with proposed discoveries; the Supervisor verifies, commits, and closes.
 
 ### Single-Writer Rule
-Only the Supervisor mutates shared state: `.agents/TICKETS.md`, `git add`/`commit`/`push`, and `gh`. Workers propose; the Supervisor writes. Reasons:
+Only the Supervisor mutates shared state: `.agents/TICKETS.md`, `.agents/orchestration-metrics.jsonl`, `git add`/`commit`/`push`, and `gh`. Workers propose; the Supervisor writes. Reasons:
 * A board edited by parallel workers is a write race on a single file, the exact hazard the disjoint-file invariant prevents.
 * All workers share one git index; concurrent commits collide even when edited files are disjoint.
 * Closure must follow **independent** verification by the Supervisor, not a worker's self-report.

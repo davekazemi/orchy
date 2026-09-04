@@ -20,7 +20,7 @@ In conventional single-agent sessions, a single LLM:
 ### The Hierarchical Solution
 By appointing a single **Supervisor** and offloading sub-tasks to specialized subagents:
 * Top-tier reasoning is reserved exclusively for orchestration and final verification.
-* 80–90% of token consumption occurs on economical models (`flash`, `flash_lite`).
+* The bulk of token consumption moves to economical models (`flash`, `flash_lite`); the actual share is recorded per task in the metrics ledger.
 * The Supervisor maintains a clean context containing only plans, high-level summaries, and verified diffs.
 
 ---
@@ -41,6 +41,9 @@ The ratios above are per-token list-price ratios. Real savings are lower because
 * **Orchestration overhead**: decomposition, dependency analysis, synthesis, and independent re-verification are Supervisor work.
 
 Expect meaningful savings on large, genuinely parallel tasks; expect zero or negative savings on small or tightly coupled ones. Apply the complexity threshold in `SKILL.md` before dispatching.
+
+### Measuring Instead of Assuming
+Do not quote the table above as evidence. The Supervisor appends a per-task entry to `.agents/orchestration-metrics.jsonl` (per-role token usage, retries, verification result, and whether the counts were runtime-reported or estimated), and `/orchestrate status` summarizes it. The authoritative check is an A/B run: same task from the same commit, once solo and once with `orch:`, compared on the provider's billing dashboard with tokens weighted by each model's price. Orchestration typically spends more total tokens and fewer expensive ones, so an unweighted token count will understate or invert the result. See `SKILL.md` Section 7.
 
 ---
 

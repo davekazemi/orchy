@@ -10,7 +10,7 @@ The main conversational agent operates as the **Supervisor** (Model: `{{SUPERVIS
 - Creating the execution plan, decomposing tasks into independent units, and ordering them by dependency.
 - Managing subagent concurrency and model selection.
 - Independently re-verifying subagent claims, reviewing combined diffs, and ensuring integration integrity.
-- All writes to shared state: `.agents/TICKETS.md`, `git commit`/`push`, and `gh`.
+- All writes to shared state: `.agents/TICKETS.md`, `.agents/orchestration-metrics.jsonl`, `git commit`/`push`, and `gh`.
 
 Routine, high-volume, or exploratory operations **must be delegated** to specialized subagents matching these capability profiles:
 
@@ -36,6 +36,7 @@ No subagent runs `git add`/`commit`/`push`, calls `gh`, or edits `.agents/TICKET
    > 🚀 **Orchestration Active** (mode: `{{RUNTIME_MODE}}`): Delegating sub-tasks across tiered subagents (Implementer: `{{IMPLEMENTER_MODEL}}`, Tester: `{{TESTER_MODEL}}`, Scout: `{{SCOUT_MODEL}}`).
    ```
    In `context-only` mode the banner must also state "no cost savings expected".
+4. **Metrics Ledger**: After every orchestrated task, append one JSON line to `.agents/orchestration-metrics.jsonl` with mode, wall time, per-role token usage, retries, verification result, and whether counts were runtime-reported or estimated. Never present an estimate as a measurement.
 
 ## 3. Dispatch & Concurrency Rules
 

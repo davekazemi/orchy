@@ -19,10 +19,13 @@ Command / Trigger | Description
 `/orchestrate cancel` | **Abort In-Flight**: Immediately terminates all running subagents and restores manual control.
 `/orchestrate init` | Interactive onboarding: configures model tiers, tracking mode, and writes settings to `AGENTS.md`.
 `/orchestrate update` | Re-configures role-to-model assignments and execution policies without manual edits.
-`/orchestrate status` | Inspects currently active subagents, background tasks, and token efficiency statistics.
+`/orchestrate status` | Inspects currently active subagents, detected runtime mode, and the token/cost ledger summary (see Section 7).
 
 > [!NOTE]
 > **Default Behavior**: By default, the main model executes tasks **solo / directly**. Multi-agent orchestration only engages when triggered via the `orch:` prefix or when the workspace toggle is turned `/orchestrate on`.
+
+> [!IMPORTANT]
+> **Uninitialized workspace safeguard**: `orch:` and `/orchestrate on` require a configured workspace. If `.agents/orchestration.config.json` is absent and `AGENTS.md` contains no `<!-- agent-orchestration:start -->` block, do not dispatch anything. Run the `/orchestrate init` flow first (Section 2), then resume the original request. Details in Section 4.
 
 ---
 
@@ -125,6 +128,19 @@ To ensure the primary model handles normal tasks directly without unwanted subag
    > `orch: add rate limiting middleware and write tests`
 2. **Workspace Toggle (`/orchestrate on`)**: The user has explicitly turned orchestration on for the workspace. (Can be reverted anytime with `/orchestrate off`).
 
+### Uninitialized Workspace Safeguard
+Before acting on either trigger, check that the workspace is configured:
+* `.agents/orchestration.config.json` exists, **or**
+* `AGENTS.md` contains a `<!-- agent-orchestration:start -->` block.
+
+If neither is present, the workspace has never been initialized. Do **not** guess model tiers, do not assume a runtime mode, and do not spawn subagents. Instead:
+1. Tell the user: "Orchestration is not initialized in this workspace. Running `/orchestrate init` first."
+2. Run the full init flow from Section 2 (capability probe, model menu, ticketing choice, persist).
+3. If the probe returns `solo`, or the user declines the init prompts, execute the original request directly and say so.
+4. Otherwise resume the original request with orchestration, applying the complexity threshold and banner as normal.
+
+Treat a `.agents/orchestration.config.json` that fails to parse the same as absent. If `AGENTS.md` has the block but the config file is missing, rebuild the config from the block's values and continue without re-prompting.
+
 > [!IMPORTANT]
 > **Mandatory Activation Banner**:
 > Whenever orchestration is engaged, the agent **MUST prepend an alert banner at the very top of its initial response**:
@@ -219,7 +235,7 @@ If a subagent's work fails verification or produces errors:
 The orchestrator supports two interchangeable tracking modes configured during `/orchestrate init`.
 
 > [!IMPORTANT]
-> **Single-Writer Rule**: only the Supervisor writes to `.agents/TICKETS.md`, runs `git commit`/`push`, or calls `gh`. Subagents *propose* discoveries and closures inside their result contract; they never mutate the board or repository history. A shared board edited by parallel workers is the same write race the disjoint-file invariant exists to prevent.
+> **Single-Writer Rule**: only the Supervisor writes to `.agents/TICKETS.md` and `.agents/orchestration-metrics.jsonl`, runs `git commit`/`push`, or calls `gh`. Subagents *propose* discoveries and closures inside their result contract; they never mutate the board or repository history. A shared board edited by parallel workers is the same write race the disjoint-file invariant exists to prevent.
 
 ### Option A: Local Markdown Tracker (`.agents/TICKETS.md`) [Default]
 Ideal for local projects, offline work, or repositories without remote issue trackers.
@@ -282,4 +298,40 @@ Per-token ratios overstate real savings. Three costs are paid on top of them:
 * **Orchestration overhead**: decomposition, dependency analysis, synthesis, and independent verification all run on the Supervisor.
 
 Net savings are meaningful on large, genuinely parallel tasks and can be zero or negative on small or tightly coupled ones. This is why orchestration is opt-in, gated by the complexity threshold, and restricted to large tasks in `context-only` mode.
+
+---
+
+## 7. Measuring & Verifying Savings
+
+The ratios in Section 6 are assumptions. The Supervisor records what actually happened so the user can check them.
+
+### Metrics Ledger (`.agents/orchestration-metrics.jsonl`)
+After every orchestrated task (and every solo task when `metrics.recordSoloBaseline` is true), the Supervisor appends exactly one JSON line. The Supervisor is the only writer, consistent with Section 5. Fields:
+
+```json
+{"ts":"2026-09-04T10:12:00Z","task":"add token expiry validation","mode":"full","orchestrated":true,
+ "wallSeconds":412,"waves":2,"retries":1,"verifiedIndependently":true,"outcome":"SUCCESS",
+ "usage":{"supervisor":{"model":"pro","in":18400,"out":3100},
+          "scout":{"model":"flash_lite","in":42000,"out":2600},
+          "implementer":{"model":"flash","in":31000,"out":5400},
+          "tester":{"model":"flash_lite","in":12000,"out":900}},
+ "source":"runtime_usage_api"}
+```
+
+Rules for populating `usage`:
+* Prefer token counts the runtime reports (per-subagent usage, `manage_subagents` stats, or the equivalent). Set `source` to `runtime_usage_api`.
+* If the runtime exposes nothing, estimate as `ceil(characters / 4)` over each prompt sent and each result received, and set `source` to `estimated`. Never present an estimate as measured.
+* If a role was never dispatched, omit it rather than writing zeros.
+* Record the solo baseline the same way, with `orchestrated: false` and a single `supervisor` entry.
+
+### `/orchestrate status` Summary
+When invoked, read the ledger and report:
+* Total tokens per model and the share consumed on non-Supervisor tiers.
+* Cost-weighted total using `metrics.pricing` from the config (per-million input/output prices per model). If pricing is unset, print raw tokens and say cost weighting is unavailable.
+* Retry rate and independent-verification pass rate.
+* If solo baselines exist, the median cost-weighted total for orchestrated vs. solo tasks, with the sample sizes. Below three samples per group, state that the comparison is not yet meaningful.
+* The proportion of entries with `source: estimated`, so the user knows how much of the summary is measured.
+
+### Verification Protocol the Supervisor Should Suggest
+When the user asks whether orchestration is saving anything, do not answer from the ratio table. Recommend the A/B protocol: same task, same starting commit, once solo and once with `orch:`, comparing the provider's billing or usage dashboard before and after each run. Point out that orchestration typically spends more *total* tokens and fewer *expensive* tokens, so only a cost-weighted comparison is valid, and that a single sample proves nothing. The billing dashboard is the ground truth; if it disagrees with the ledger by more than ~20%, the ledger's `source` for that runtime should be treated as unreliable.
 
